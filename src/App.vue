@@ -1,44 +1,75 @@
 <script setup>
-import { RouterLink, RouterView } from 'vue-router'
 </script>
 
 <template>
   <div class="container">
-    <nav>
+    <nav class="nav-wrapper">
       <ul class="nav">
         <li>
-          <RouterLink :to="{name: 'status'}">
-          Status
+          <RouterLink :to="{ name: 'status' }">
+            Status
           </RouterLink>
         </li>
         <li>
-          <RouterLink :to="{name: 'home'}">
-          Home
+          <RouterLink :to="{ name: 'home' }">
+            Home
           </RouterLink>
         </li>
         <li>
-          <RouterLink :to="{name: 'blog'}">
-          Blog
+          <RouterLink :to="{ name: 'blog' }">
+            Blog
           </RouterLink>
         </li>
         <li>
-          <RouterLink :to="{name: 'projects'}">
-          Projects
-          </RouterLink></li>
+          <RouterLink :to="{ name: 'projects' }">
+            Projects
+          </RouterLink>
+        </li>
       </ul>
       <hr>
     </nav>
     <div class="wrapper">
       <RouterView></RouterView>
     </div>
+
+    <div class="footer-wrapper">
+      <hr>
+      <div class="flex flex-row justify-between">
+        <div>
+          You can contact me at:
+        </div>
+        <div>
+          <span class="email"></span> hilmyahmadnaufal@gmail.com
+        </div>
+        <div>
+          <span class="linkedin-icon"></span> linkedin.com/in/anhilmy
+        </div>
+      </div>
+    </div>
   </div>
 
 </template>
 
-<style scoped>
+<style>
 header {
   line-height: 1.5;
   max-height: 100vh;
+}
+
+.footer-wrapper {
+  margin: auto;
+  bottom: 0;
+  height: 20px;
+  width: 100%;
+  position: absolute;
+  left: 0;
+  bottom: 0;
+}
+
+.nav-wrapper {
+  max-width: 70%;
+  margin: auto;
+  margin-top: 2rem;
 }
 
 ul.nav {
@@ -49,7 +80,6 @@ ul.nav {
   width: 100%;
   font-size: xx-large;
   text-align: center;
-  margin-top: 2rem;
   margin-bottom: 1rem;
 }
 
@@ -69,6 +99,24 @@ nav a {
 
 nav a:first-of-type {
   border: 0;
+}
+
+.container {
+  width: 100vw;
+  min-height: 95%;
+  position: relative;
+}
+
+.wrapper {
+  max-width: 60%;
+  margin: auto;
+  padding-bottom: 10px;
+}
+
+html,
+body {
+  height: 100%;
+  font-size: large;
 }
 
 @media (min-width: 1024px) {
