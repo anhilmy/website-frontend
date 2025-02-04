@@ -25,8 +25,8 @@ import profile_image from '@/assets/profile_image.jpg'
         </div>
         <div class="project-subtitle justify">
           <ul>
-            <li>Proactively create a logger middleware API request reducing maintenance effort from 4 4 person to 1
-              person</li>
+            <li>Proactively create a logger middleware API request reducing maintenance effort from 4 people to 1 person
+            </li>
           </ul>
         </div>
 

@@ -6,13 +6,13 @@
     <nav class="nav-wrapper">
       <ul class="nav">
         <li>
-          <RouterLink :to="{ name: 'status' }">
-            Status
+          <RouterLink :to="{ name: 'home' }">
+            Home
           </RouterLink>
         </li>
         <li>
-          <RouterLink :to="{ name: 'home' }">
-            Home
+          <RouterLink :to="{ name: 'status' }">
+            Status
           </RouterLink>
         </li>
         <li>
