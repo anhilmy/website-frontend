@@ -6,7 +6,7 @@
     Hello, this is me, Hilmy!
   </div>
   <div class="flex gap-5 intro">
-    <img class="profile" src="/img/construction.png" />
+    <img class="profile" src="/img/profile_image.png" />
     <div>
       Hi, I'm Ahmad Naufal Hilmy—though most people just call me Hilmy. I'm a software engineer that have passion on
       exploring new ideas and creating impactful solutions. I love uncovering the best ways to solve problems, combining
