@@ -31,39 +31,13 @@
     <div class="wrapper">
       <RouterView></RouterView>
     </div>
-
-    <div class="footer-wrapper">
-      <hr>
-      <div class="flex flex-row justify-between">
-        <div>
-          You can contact me at:
-        </div>
-        <div>
-          <span class="email"></span> hilmyahmadnaufal@gmail.com
-        </div>
-        <div>
-          <span class="linkedin-icon"></span> linkedin.com/in/anhilmy
-        </div>
-      </div>
-    </div>
   </div>
-
 </template>
 
 <style>
 header {
   line-height: 1.5;
   max-height: 100vh;
-}
-
-.footer-wrapper {
-  margin: auto;
-  bottom: 0;
-  height: 20px;
-  width: 100%;
-  position: absolute;
-  left: 0;
-  bottom: 0;
 }
 
 .nav-wrapper {

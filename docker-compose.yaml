@@ -1,0 +1,8 @@
+version: "3"
+name: "website-frontend"
+services:
+  vue-app:
+    build: .
+    container_name: vue-profile
+    ports:
+      - "8080:80"
