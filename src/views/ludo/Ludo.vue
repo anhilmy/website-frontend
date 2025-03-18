@@ -1,13 +1,52 @@
 <script>
-export default {
-    setup() {
+import LudoToken from '@/components/LudoToken.vue';
 
+export default {
+    components: {
+        LudoToken
     },
+    name: 'Ludo',
+    mounted() {
+        // const tokens = document.getElementsByClassName('token');
+        // for (let i = 0; i < tokens.length; i++) {
+        //     tokens[i].style.top = `${i * 10}px`;
+        //     tokens[i].style.left = `${i * 10}px`;
+        // }
+
+        const circle_red = document.querySelectorAll('.circle.red');
+        const token_red = document.querySelectorAll(`#red-1, #red-2, #red-3, #red-4`);
+        const outer = document.querySelector('.outer').getBoundingClientRect();
+        for (let i = 0; i < circle_red.length; i++) {
+            const rect = circle_red[i].getBoundingClientRect();
+
+            token_red[i].style.border = `1px solid black`;
+            token_red[i].style.top = `${(rect.top - outer.top)}px`;
+            token_red[i].style.left = `${(rect.left - outer.left)}px`;
+            // token_red[i].style.transform = "translate(50%, 0)";
+
+        }
+    }
 }
 </script>
 
 <template>
     <div class="outer">
+        <ludo-token class="token inside" id="red-1" color="red" />
+        <ludo-token class="token inside" id="red-2" color="red" />
+        <ludo-token class="token inside" id="red-3" color="red" />
+        <ludo-token class="token inside" id="red-4" color="red" />
+        <!-- <ludo-token class="token inside" id="green-1" color="green" />
+        <ludo-token class="token inside" id="green-2" color="green" />
+        <ludo-token class="token inside" id="green-3" color="green" />
+        <ludo-token class="token inside" id="green-4" color="green" />
+        <ludo-token class="token inside" id="yellow-1" color="yellow" />
+        <ludo-token class="token inside" id="yellow-2" color="yellow" />
+        <ludo-token class="token inside" id="yellow-3" color="yellow" />
+        <ludo-token class="token inside" id="yellow-4" color="yellow" />
+        <ludo-token class="token inside" id="blue-1" color="blue" />
+        <ludo-token class="token inside" id="blue-2" color="blue" />
+        <ludo-token class="token inside" id="blue-3" color="blue" />
+        <ludo-token class="token inside" id="blue-4" color="blue" /> -->
         <div class="box_row">
             <div class="box red home-box">
                 <div class="inner-box">
@@ -165,6 +204,15 @@ export default {
 <style lang="scss" scoped>
 $canvas: min(100vw, 100vh);
 $cell-size: max(calc($canvas * 0.05), 2rem);
+
+
+.outer {
+    position: relative;
+}
+
+.token {
+    position: absolute;
+}
 
 * {
     margin: 0;
