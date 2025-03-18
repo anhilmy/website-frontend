@@ -49,6 +49,9 @@ const router = createRouter({
     {
       path: "/ludo",
       name: "ludo",
+      meta: {
+        title: "Ludo"
+      },
       component: () => import("../views/ludo/Ludo.vue")
     }
   ]

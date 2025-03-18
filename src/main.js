@@ -7,6 +7,11 @@ import PrimeVue from 'primevue/config'
 import Material from '@primevue/themes/material'
 import Button from 'primevue/button'
 
+router.beforeEach((toRoute, fromRoute, next) => {
+    window.document.title = toRoute.meta?.title ? 'anhilmy | ' + toRoute.meta.title : 'anhilmy';
+    next()
+})
+
 const app = createApp(App)
 app.use(PrimeVue,
     {
