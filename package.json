@@ -8,5 +8,8 @@
     "dev": "concurrently \"npm:dev:porto\" \"npm:dev:pos\"",
     "dev:porto": "npm --workspace porto run dev",
     "dev:pos": "npm --workspace pos run dev"
+  },
+  "dependencies": {
+    "vite-plugin-static-copy": "^3.1.1"
   }
 }
