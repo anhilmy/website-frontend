@@ -1,0 +1,12 @@
+name: "website-frontend"
+services:
+  vue-porto:
+    build: ./apps/porto
+    container_name: vue-porto
+    ports:
+      - "8080:80"
+  vue-pos:
+    build: ./apps/pos
+    container_name: vue-pos
+    ports:
+      - "8081:80"
