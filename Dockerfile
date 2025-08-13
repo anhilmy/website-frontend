@@ -19,6 +19,7 @@ RUN npm install --workspaces
 # Stage 2: Build Porto app
 # --------------------------
 FROM deps as build-porto
+WORKDIR /app
 COPY . .
 WORKDIR /app/apps/porto
 RUN npm run build
@@ -27,6 +28,7 @@ RUN npm run build
 # Stage 3: Build POS app
 # --------------------------
 FROM deps as build-pos
+WORKDIR /app
 COPY . .
 WORKDIR /app/apps/pos
 RUN npm run build

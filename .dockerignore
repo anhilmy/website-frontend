@@ -1,0 +1,21 @@
+# Ignore all local dependencies
+node_modules
+**/node_modules
+
+# Ignore build output
+dist
+**/dist
+
+# Ignore logs
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# Ignore IDE files
+.vscode
+.idea
+*.swp
+
+# Ignore OS metadata
+.DS_Store
+Thumbs.db
