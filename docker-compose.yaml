@@ -1,12 +1,19 @@
 name: "website-frontend"
 services:
   vue-porto:
-    build: ./apps/porto
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: vue-porto
     container_name: vue-porto
     ports:
       - "8080:80"
+
   vue-pos:
-    build: ./apps/pos
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: vue-pos
     container_name: vue-pos
     ports:
       - "8081:80"
