@@ -1,15 +1,17 @@
+<script setup>
+import HeroSection from '@/components/about/HeroSection.vue'
+import StorySection from '@/components/about/StorySection.vue'
+import SkillTags from '@/components/about/SkillTags.vue'
+import TimelineSection from '@/components/about/TimelineSection.vue'
+import ContactSection from '@/components/about/ContactSection.vue'
+</script>
+
 <template>
-  <div class="about">
-    <h1>This is an about page</h1>
+  <div>
+    <HeroSection />
+    <StorySection />
+    <SkillTags />
+    <TimelineSection />
+    <ContactSection />
   </div>
 </template>
-
-<style>
-@media (min-width: 1024px) {
-  .about {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-  }
-}
-</style>
