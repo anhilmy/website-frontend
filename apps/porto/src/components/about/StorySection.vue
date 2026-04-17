@@ -3,7 +3,7 @@
         <h2 class="font-heading text-xl font-semibold text-bark-900 mb-5">About</h2>
         <div class="font-body text-bark-900 leading-relaxed space-y-4">
             <p>
-                I'm Ahmad Naufal Hilmy, a software engineer based in Depok, Indonesia. I graduated from
+                I'm Ahmad Naufal Hilmy, a software engineer based in Indonesia. I graduated from
                 Universitas Indonesia with a degree in Computer Science, and since then I've been drawn to
                 the kind of work that sits at the intersection of systems and people.
             </p>
@@ -32,5 +32,12 @@
                 this website runs on one) or exploring whatever catches my curiosity next.
             </p>
         </div>
+
+        <blockquote class="font-body mt-6 pl-4 border-l-2 border-sand-300">
+            <p class="text-sm italic text-bark-700 leading-relaxed">
+                "Live as if you were to die tomorrow. Learn as if you were to live forever."
+            </p>
+            <footer class="mt-2 text-xs text-bark-500">— Mahatma Gandhi</footer>
+        </blockquote>
     </section>
 </template>

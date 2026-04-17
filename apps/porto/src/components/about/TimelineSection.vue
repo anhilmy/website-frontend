@@ -20,7 +20,7 @@ const timeline = [
     },
     {
         period: 'Jun 2017 – Feb 2022',
-        role: 'B.S. Computer Science',
+        role: 'Bachelor of Computer Science',
         org: 'Universitas Indonesia',
         description: '',
     },
