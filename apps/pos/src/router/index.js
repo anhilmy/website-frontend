@@ -3,6 +3,7 @@ import { isAuthenticated, isManager } from '../lib/session'
 
 import LoginView from '../views/LoginView.vue'
 import TerminalView from '../views/TerminalView.vue'
+import TablesView from '../views/TablesView.vue'
 import OrdersView from '../views/OrdersView.vue'
 import OrderDetailView from '../views/OrderDetailView.vue'
 import MenuView from '../views/MenuView.vue'
@@ -15,6 +16,7 @@ const router = createRouter({
     { path: '/login', name: 'login', component: LoginView, meta: { bare: true } },
     { path: '/', redirect: '/terminal' },
     { path: '/terminal', name: 'terminal', component: TerminalView },
+    { path: '/tables', name: 'tables', component: TablesView },
     { path: '/orders', name: 'orders', component: OrdersView },
     { path: '/orders/:id', name: 'order', component: OrderDetailView },
     { path: '/menu', name: 'menu', component: MenuView },

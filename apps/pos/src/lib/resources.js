@@ -37,12 +37,7 @@ export const items = {
 
 export const orders = {
   create: (customerInfo) => api.post('/orders', { customerInfo }),
-  list: (params = {}) => {
-    const qs = new URLSearchParams(
-      Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''),
-    ).toString()
-    return api.get(`/orders${qs ? `?${qs}` : ''}`)
-  },
+  list: (params = {}) => api.get(withQuery('/orders', params)),
   get: (id) => api.get(`/orders/${id}`),
   addItem: (id, menuItemId, quantity) =>
     api.post(`/orders/${id}/items`, { menuItemId, quantity }),
@@ -52,6 +47,28 @@ export const orders = {
   complete: (id, paymentMethod, paymentAmount) =>
     api.post(`/orders/${id}/complete`, { paymentMethod, paymentAmount }),
   cancel: (id) => api.post(`/orders/${id}/cancel`),
+}
+
+const withQuery = (path, params = {}) => {
+  const qs = new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''),
+  ).toString()
+  return `${path}${qs ? `?${qs}` : ''}`
+}
+
+export const tables = {
+  list: (params = {}) => api.get(withQuery('/tables', params)),
+  get: (id) => api.get(`/tables/${id}`),
+  create: (body) => api.post('/tables', body),
+  update: (id, body) => api.put(`/tables/${id}`, body),
+  remove: (id) => api.del(`/tables/${id}`),
+  setStatus: (id, status) => api.patch(`/tables/${id}/status`, { status }),
+  open: (id, customerInfo) =>
+    api.post(`/tables/${id}/open`, customerInfo ? { customerInfo } : {}),
+  assign: (id, transactionId) => api.post(`/tables/${id}/assign`, { transactionId }),
+  release: (id) => api.post(`/tables/${id}/release`),
+  join: (id, targetTableId) => api.post(`/tables/${id}/join`, { targetTableId }),
+  unjoin: (id) => api.post(`/tables/${id}/unjoin`),
 }
 
 export const users = {

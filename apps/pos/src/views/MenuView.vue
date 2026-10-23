@@ -1,5 +1,8 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import Pencil from '@primevue/icons/pencil'
+import Trash from '@primevue/icons/trash'
+import Times from '@primevue/icons/times'
 import { categories as catApi, items as itemApi } from '../lib/resources'
 import { isManager } from '../lib/session'
 import { money } from '../lib/format'
@@ -169,10 +172,13 @@ onMounted(loadAll)
               >off</span>
               <button
                 v-else-if="canEdit"
-                class="btn btn-ghost btn-sm shrink-0"
+                class="btn-icon shrink-0"
+                type="button"
+                title="Retire category"
+                aria-label="Retire category"
                 @click="removeCategory(c)"
               >
-                Retire
+                <Times />
               </button>
             </li>
           </ul>
@@ -223,8 +229,26 @@ onMounted(loadAll)
                 </button>
               </td>
               <td v-if="canEdit" class="px-5 py-3.5 text-right whitespace-nowrap">
-                <button class="btn btn-ghost btn-sm" @click="startEdit(item)">Edit</button>
-                <button class="btn btn-ghost btn-sm" @click="removeItem(item)">Remove</button>
+                <div class="inline-flex items-center gap-1">
+                  <button
+                    class="btn-icon"
+                    type="button"
+                    title="Edit item"
+                    aria-label="Edit item"
+                    @click="startEdit(item)"
+                  >
+                    <Pencil />
+                  </button>
+                  <button
+                    class="btn-icon btn-icon-danger"
+                    type="button"
+                    title="Remove item"
+                    aria-label="Remove item"
+                    @click="removeItem(item)"
+                  >
+                    <Trash />
+                  </button>
+                </div>
               </td>
             </tr>
             <tr v-if="!loading && !filtered.length">

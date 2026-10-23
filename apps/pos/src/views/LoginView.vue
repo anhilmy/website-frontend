@@ -36,13 +36,11 @@ async function submit() {
     <!-- Brand panel -->
     <section class="relative hidden lg:flex flex-col justify-between bg-ink text-paper p-12 overflow-hidden">
       <div class="rise rise-1">
-        <div class="eyebrow text-ember">Point of sale · Terminal 01</div>
+        <h2 class="text-[clamp(3.5rem,7vw,6.5rem)] text-ember">Point of Sale</h2>
         <h1 class="display text-[clamp(3.5rem,7vw,6.5rem)] leading-[0.92] mt-4 font-black">
-          Counter
+          ChocoCaffe
         </h1>
         <p class="mt-5 max-w-md text-paper/70 text-lg leading-relaxed">
-          The fast, honest till for the front of house. Ring up orders, settle the bill,
-          keep the menu current.
         </p>
       </div>
 

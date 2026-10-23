@@ -10,6 +10,7 @@ const router = useRouter()
 const nav = computed(() => {
   const links = [
     { name: 'terminal', label: 'Terminal', hint: 'New order' },
+    { name: 'tables', label: 'Tables', hint: 'Floor' },
     { name: 'orders', label: 'Orders', hint: 'History' },
     { name: 'menu', label: 'Menu', hint: 'Catalogue' },
   ]
@@ -23,7 +24,14 @@ const activeName = computed(() => {
 })
 
 const title = computed(() => {
-  const map = { terminal: 'Terminal', orders: 'Orders', order: 'Order', menu: 'Menu', users: 'Staff' }
+  const map = {
+    terminal: 'Terminal',
+    tables: 'Tables',
+    orders: 'Orders',
+    order: 'Order',
+    menu: 'Menu',
+    users: 'Staff',
+  }
   return map[route.name] || 'Counter'
 })
 

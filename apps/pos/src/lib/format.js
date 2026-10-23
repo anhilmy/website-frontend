@@ -33,10 +33,18 @@ export function timeOnly(value) {
 }
 
 const STATUS_TONE = {
+  // orders
   DRAFT: 'ink',
   IN_PROGRESS: 'mustard',
   COMPLETED: 'sage',
   CANCELLED: 'ember',
+  // tables
+  AVAILABLE: 'sage',
+  RESERVED: 'mustard',
+  OCCUPIED: 'ember',
+  JOINED: 'teal',
+  CLEANING: 'muted',
+  OUT_OF_SERVICE: 'muted',
 }
 
 export function statusTone(status) {

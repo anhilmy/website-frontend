@@ -78,6 +78,21 @@
   .btn-sm {
     @apply px-3 py-1.5 text-xs;
   }
+  .btn-icon {
+    @apply inline-flex items-center justify-center h-8 w-8 rounded-card border border-transparent
+      text-ink-2 transition-colors hover:bg-paper-2 hover:border-line hover:text-ink
+      disabled:opacity-40 disabled:pointer-events-none;
+  }
+  .btn-icon-danger {
+    @apply hover:text-ember;
+  }
+
+  /* ---- Dropdown menu rows (kebab menus) ---- */
+  .menu-item {
+    @apply flex w-full items-center gap-2 px-3.5 py-2 text-left text-sm text-ink-2
+      transition-colors hover:bg-paper-2 hover:text-ink
+      disabled:opacity-40 disabled:pointer-events-none;
+  }
 
   /* ---- Forms ---- */
   .field {
