@@ -86,6 +86,10 @@
   .btn-icon-danger {
     @apply hover:text-ember;
   }
+  /* Selected state for toggle-style buttons; must beat .btn's hover background. */
+  .btn-active {
+    @apply bg-ink text-paper border-ink hover:bg-ink hover:text-paper;
+  }
 
   /* ---- Dropdown menu rows (kebab menus) ---- */
   .menu-item {
@@ -115,6 +119,20 @@
   }
   .nav-item-active {
     @apply bg-ink text-paper hover:bg-ink hover:text-paper;
+  }
+
+  /* ---- Menu image thumbnails ---- */
+  .menu-thumb {
+    @apply grid place-items-center overflow-hidden bg-paper-2 text-ink-3;
+  }
+  .menu-thumb-square {
+    @apply h-11 w-11 shrink-0 rounded-card border border-line text-lg;
+  }
+  .menu-thumb-banner {
+    @apply aspect-[4/3] w-full border-b border-line text-4xl;
+  }
+  .menu-thumb img {
+    @apply h-full w-full object-cover;
   }
 }
 
@@ -183,5 +201,57 @@
   .rise-4,
   .rise-5 {
     animation: none;
+  }
+}
+
+/* ---- Print bill / receipt ---- */
+@media print {
+  body {
+    background: #fff;
+  }
+  .print-toolbar {
+    display: none !important;
+  }
+  .print-page {
+    min-height: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+  .print-sheet {
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+  .print-sheet.sheet-80 {
+    width: 80mm !important;
+  }
+  .print-sheet.sheet-a4 {
+    width: 190mm !important;
+  }
+  .print-sheet .recv {
+    --paper: #fff;
+    --line: #000;
+    --line-strong: #000;
+    background: #fff;
+    border-color: #000;
+    color: #000;
+  }
+  .print-sheet .recv::before,
+  .print-sheet .recv::after {
+    display: none;
+  }
+  .print-sheet .dashed {
+    background-image: repeating-linear-gradient(
+      to right,
+      #000 0,
+      #000 3px,
+      transparent 3px,
+      transparent 6px
+    );
+  }
+  .print-sheet .text-ink-3 {
+    color: #444 !important;
+  }
+  @page {
+    margin: 6mm;
   }
 }

@@ -1,6 +1,8 @@
-const currency = new Intl.NumberFormat('en-US', {
+const currency = new Intl.NumberFormat('id-ID', {
   style: 'currency',
-  currency: 'USD',
+  currency: 'IDR',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
 })
 
 export function money(value) {
@@ -38,6 +40,9 @@ const STATUS_TONE = {
   IN_PROGRESS: 'mustard',
   COMPLETED: 'sage',
   CANCELLED: 'ember',
+  PARTIALLY_REFUNDED: 'mustard',
+  REFUNDED: 'teal',
+  AMENDED: 'muted',
   // tables
   AVAILABLE: 'sage',
   RESERVED: 'mustard',

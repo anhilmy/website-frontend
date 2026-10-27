@@ -8,6 +8,7 @@ import OrdersView from '../views/OrdersView.vue'
 import OrderDetailView from '../views/OrderDetailView.vue'
 import MenuView from '../views/MenuView.vue'
 import UsersView from '../views/UsersView.vue'
+import PrintOrderView from '../views/PrintOrderView.vue'
 import NotFound from '../components/NotFound.vue'
 
 const router = createRouter({
@@ -21,6 +22,12 @@ const router = createRouter({
     { path: '/orders/:id', name: 'order', component: OrderDetailView },
     { path: '/menu', name: 'menu', component: MenuView },
     { path: '/users', name: 'users', component: UsersView, meta: { manager: true } },
+    {
+      path: '/print/orders/:id',
+      name: 'print-order',
+      component: PrintOrderView,
+      meta: { bare: true, auth: true },
+    },
     { path: '/:pathMatch(.*)*', name: 'notfound', component: NotFound, meta: { bare: true } },
   ],
 })
@@ -28,6 +35,9 @@ const router = createRouter({
 router.beforeEach((to) => {
   if (to.meta.bare) {
     if (to.name === 'login' && isAuthenticated()) return { name: 'terminal' }
+    if (to.meta.auth && !isAuthenticated()) {
+      return { name: 'login', query: { next: to.fullPath } }
+    }
     return true
   }
   if (!isAuthenticated()) return { name: 'login', query: { next: to.fullPath } }

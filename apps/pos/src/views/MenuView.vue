@@ -6,6 +6,7 @@ import Times from '@primevue/icons/times'
 import { categories as catApi, items as itemApi } from '../lib/resources'
 import { isManager } from '../lib/session'
 import { money } from '../lib/format'
+import MenuThumb from '../components/MenuThumb.vue'
 
 const canEdit = isManager()
 
@@ -23,6 +24,7 @@ const itemForm = reactive({
   price: '',
   categoryId: null,
   available: true,
+  imageUrl: '',
 })
 const editing = ref(false)
 
@@ -78,6 +80,7 @@ function startCreate() {
     price: '',
     categoryId: categories.value[0]?.id ?? null,
     available: true,
+    imageUrl: '',
   })
   editing.value = true
 }
@@ -90,6 +93,7 @@ function startEdit(item) {
     price: String(item.price),
     categoryId: item.menuCategory?.id ?? null,
     available: item.available,
+    imageUrl: item.imageUrl || '',
   })
   editing.value = true
 }
@@ -101,6 +105,7 @@ async function saveItem() {
     price: Number(itemForm.price),
     categoryId: itemForm.categoryId,
     available: itemForm.available,
+    imageUrl: itemForm.imageUrl.trim(),
   }
   try {
     if (itemForm.id) await itemApi.update(itemForm.id, payload)
@@ -211,9 +216,14 @@ onMounted(loadAll)
               class="border-b hairline last:border-0 hover:bg-paper-2/50"
             >
               <td class="px-5 py-3.5">
-                <div class="font-medium">{{ item.name }}</div>
-                <div class="text-[11px] text-ink-3 truncate max-w-[280px]">
-                  {{ item.description }}
+                <div class="flex items-center gap-3">
+                  <MenuThumb :src="item.imageUrl" :alt="item.name" />
+                  <div class="min-w-0">
+                    <div class="font-medium">{{ item.name }}</div>
+                    <div class="text-[11px] text-ink-3 truncate max-w-[280px]">
+                      {{ item.description }}
+                    </div>
+                  </div>
                 </div>
               </td>
               <td class="px-5 py-3.5 text-ink-2">{{ item.menuCategory?.name }}</td>
@@ -282,10 +292,21 @@ onMounted(loadAll)
             <label class="label">Description</label>
             <input v-model="itemForm.description" class="field" />
           </div>
+          <div>
+            <label class="label">Image URL</label>
+            <div class="flex items-center gap-2">
+              <MenuThumb :src="itemForm.imageUrl" :alt="itemForm.name" />
+              <input
+                v-model="itemForm.imageUrl"
+                class="field mono"
+                placeholder="https://…"
+              />
+            </div>
+          </div>
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="label">Price (USD)</label>
-              <input v-model="itemForm.price" class="field mono" type="number" step="0.01" />
+              <label class="label">Price (IDR)</label>
+              <input v-model="itemForm.price" class="field mono" type="number" step="1" />
             </div>
             <div>
               <label class="label">Category</label>
