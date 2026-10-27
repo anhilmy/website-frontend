@@ -68,12 +68,43 @@ async function request(path, { method = 'GET', body, auth = true } = {}) {
   return payload ? payload.data : null
 }
 
+async function download(path, filename) {
+  const headers = {}
+  const token = getToken()
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  const res = await fetch(BASE + path, { headers })
+  if (!res.ok) {
+    let message = res.statusText || 'Download failed'
+    try {
+      const payload = await res.json()
+      message = payload?.error?.message || message
+    } catch {
+      // Non-JSON error body; keep the status text.
+    }
+    const err = new Error(message)
+    err.status = res.status
+    throw err
+  }
+
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(url)
+}
+
 export const api = {
   get: (path, opts) => request(path, { ...opts, method: 'GET' }),
   post: (path, body, opts) => request(path, { ...opts, method: 'POST', body }),
   put: (path, body, opts) => request(path, { ...opts, method: 'PUT', body }),
   patch: (path, body, opts) => request(path, { ...opts, method: 'PATCH', body }),
   del: (path, opts) => request(path, { ...opts, method: 'DELETE' }),
+  download,
 }
 
 export const ApiError = Error

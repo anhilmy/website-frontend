@@ -100,6 +100,16 @@ const openTable = (t) =>
   })
 
 const takeOrder = (t) => router.push({ name: 'terminal', query: { order: t.currentTransactionId } })
+
+function printBill(t) {
+  if (!t.currentTransactionId) return
+  const target = router.resolve({
+    name: 'print-order',
+    params: { id: t.currentTransactionId },
+    query: { mode: 'bill' },
+  })
+  window.open(target.href, '_blank', 'noopener')
+}
 const unjoin = (t) => run(t, () => tables.unjoin(t.id))
 const setStatus = (t, status) => run(t, () => tables.setStatus(t.id, status))
 
@@ -235,7 +245,7 @@ onUnmounted(() => {
     <div class="flex flex-wrap gap-2 mt-5 rise rise-2">
       <button
         class="btn btn-sm"
-        :class="{ 'bg-ink text-paper border-ink': !activeArea }"
+        :class="{ 'btn-active': !activeArea }"
         @click="activeArea = ''"
       >
         All areas
@@ -244,7 +254,7 @@ onUnmounted(() => {
         v-for="a in areas"
         :key="a"
         class="btn btn-sm"
-        :class="{ 'bg-ink text-paper border-ink': activeArea === a }"
+        :class="{ 'btn-active': activeArea === a }"
         @click="activeArea = a"
       >
         {{ a }}
@@ -366,6 +376,15 @@ onUnmounted(() => {
                   @click="runMenu(t, () => takeOrder(t))"
                 >
                   Take order
+                </button>
+                <button
+                  v-if="['OCCUPIED', 'JOINED'].includes(t.status) && t.currentTransactionId"
+                  class="menu-item"
+                  role="menuitem"
+                  :disabled="busyId === t.id"
+                  @click="runMenu(t, () => printBill(t))"
+                >
+                  Print bill
                 </button>
                 <button
                   v-if="['AVAILABLE', 'RESERVED', 'OCCUPIED'].includes(t.status)"

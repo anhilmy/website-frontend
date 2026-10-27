@@ -1,16 +1,29 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
-import { menu, orders } from '../lib/resources'
+import {
+  chargeTemplates as chargeApi,
+  menu,
+  orders,
+  paymentMethods as methodApi,
+} from '../lib/resources'
 import { money } from '../lib/format'
+import MenuThumb from '../components/MenuThumb.vue'
 
 const route = useRoute()
 const router = useRouter()
 
 const TAX_RATE = 0.1
 
+const FALLBACK_METHODS = [
+  { code: 'CASH', label: 'Cash', isCash: true },
+  { code: 'CARD', label: 'Card', isCash: false },
+]
+
 const categories = ref([])
 const items = ref([])
+const methods = ref(FALLBACK_METHODS)
+const templates = ref([])
 const loading = ref(true)
 const error = ref('')
 
@@ -23,9 +36,15 @@ const cart = ref([])
 const dirty = ref(false)
 const busy = ref(false)
 const notice = ref('')
+const voidReasons = ref({})
 const customerInfo = ref('')
 const paymentMethod = ref('CASH')
+const paymentReference = ref('')
 const tendered = ref('')
+
+const selectedMethod = computed(() =>
+  methods.value.find((m) => m.code === paymentMethod.value),
+)
 
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase()
@@ -38,9 +57,44 @@ const filtered = computed(() => {
 
 const lines = computed(() => cart.value)
 const subtotal = computed(() => lines.value.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0))
-const tax = computed(() => subtotal.value * TAX_RATE)
-const total = computed(() => subtotal.value + tax.value)
-const isSettled = computed(() => order.value?.status === 'COMPLETED')
+
+// Mirrors TransactionService.recalcTotals: evaluate in sort order, round each charge once.
+const localCharges = computed(() => {
+  const definitions = templates.value.length
+    ? templates.value
+    : [
+        {
+          code: 'TAX',
+          label: 'Tax',
+          calcType: 'PERCENTAGE',
+          value: TAX_RATE,
+          basis: 'SUBTOTAL',
+          taxable: false,
+          isTax: true,
+          sortOrder: 10,
+        },
+      ]
+  let runningBase = subtotal.value
+  return definitions.map((t) => {
+    const base = t.basis === 'RUNNING_TOTAL' ? runningBase : subtotal.value
+    const raw = t.calcType === 'FIXED' ? Number(t.value) : base * Number(t.value)
+    const amount = Math.round(raw * 100) / 100
+    if (t.taxable) runningBase += amount
+    return { ...t, computedAmount: amount }
+  })
+})
+
+// A saved, untouched order shows its own snapshot; an edited ticket re-evaluates locally.
+const displayCharges = computed(() =>
+  !dirty.value && order.value?.charges?.length ? order.value.charges : localCharges.value,
+)
+const chargesTotal = computed(() =>
+  displayCharges.value.reduce((sum, c) => sum + Number(c.computedAmount), 0),
+)
+const total = computed(() => subtotal.value + chargesTotal.value)
+const isSettled = computed(() =>
+  ['COMPLETED', 'PARTIALLY_REFUNDED', 'REFUNDED'].includes(order.value?.status),
+)
 // Only DRAFT orders are mutable server-side; a settled/cancelled pick-up cannot be edited.
 const isEditable = computed(() => !order.value || order.value.status === 'DRAFT')
 const change = computed(() => {
@@ -49,23 +103,39 @@ const change = computed(() => {
 })
 
 function syncCartFromOrder() {
-  cart.value = (order.value?.items ?? []).map((l) => ({
-    menuItemId: l.menuItem?.id,
-    name: l.menuItem?.name,
-    unitPrice: Number(l.unitPrice),
-    quantity: l.quantity,
-  }))
+  cart.value = (order.value?.items ?? [])
+    .filter((l) => l.status !== 'VOIDED')
+    .map((l) => ({
+      menuItemId: l.menuItem?.id,
+      name: l.menuItem?.name,
+      unitPrice: Number(l.unitPrice),
+      quantity: l.quantity,
+    }))
 }
 
 onMounted(async () => {
   try {
-    const [cats, its] = await Promise.all([menu.categories(), menu.items()])
+    const [cats, its, availableMethods, chargeDefs] = await Promise.all([
+      menu.categories(),
+      menu.items(),
+      methodApi.list(true),
+      chargeApi.list(true).catch(() => []),
+    ])
     categories.value = cats
     items.value = its
+    if (availableMethods?.length) methods.value = availableMethods
+    templates.value = chargeDefs ?? []
+
+    const preferred =
+      methods.value.find((m) => m.code === 'CASH') || methods.value[0]
+    if (preferred) paymentMethod.value = preferred.code
+
     // Opened from the floor plan: pick up that table's existing order.
     if (route.query.order) {
       order.value = await orders.get(route.query.order)
       customerInfo.value = order.value.customerInfo || ''
+      if (order.value.paymentMethod) paymentMethod.value = order.value.paymentMethod
+      paymentReference.value = order.value.paymentReference || ''
       syncCartFromOrder()
     }
   } catch (e) {
@@ -82,6 +152,7 @@ function qtyOf(menuItemId) {
 function add(item) {
   if (busy.value || !isEditable.value) return
   notice.value = ''
+  delete voidReasons.value[item.id]
   const line = cart.value.find((l) => l.menuItemId === item.id)
   if (line) line.quantity += 1
   else
@@ -105,6 +176,14 @@ function setQty(line, quantity) {
 }
 
 function removeLine(line) {
+  const saved = (order.value?.items ?? []).some(
+    (l) => l.status !== 'VOIDED' && l.menuItem?.id === line.menuItemId,
+  )
+  if (saved) {
+    const reason = window.prompt('Reason for removing this item?', 'Removed at till')
+    if (!reason || !reason.trim()) return
+    voidReasons.value[line.menuItemId] = reason.trim()
+  }
   cart.value = cart.value.filter((l) => l !== line)
   dirty.value = true
 }
@@ -114,7 +193,11 @@ async function persistCart() {
     order.value = await orders.create(customerInfo.value || null)
   }
 
-  const serverByItem = new Map((order.value.items ?? []).map((l) => [l.menuItem?.id, l]))
+  const serverByItem = new Map(
+    (order.value.items ?? [])
+      .filter((l) => l.status !== 'VOIDED')
+      .map((l) => [l.menuItem?.id, l]),
+  )
   const cartByItem = new Map(cart.value.map((l) => [l.menuItemId, l]))
 
   for (const line of cart.value) {
@@ -128,12 +211,17 @@ async function persistCart() {
 
   for (const [menuItemId, line] of serverByItem) {
     if (!cartByItem.has(menuItemId)) {
-      order.value = await orders.removeItem(order.value.id, line.id)
+      order.value = await orders.voidItem(
+        order.value.id,
+        line.id,
+        voidReasons.value[menuItemId] || 'Removed at till',
+      )
     }
   }
 
   order.value = await orders.get(order.value.id)
   syncCartFromOrder()
+  voidReasons.value = {}
   dirty.value = false
 }
 
@@ -164,7 +252,12 @@ async function settle() {
   try {
     if (!order.value || dirty.value) await persistCart()
     const amount = Number(tendered.value || order.value.totalAmount)
-    order.value = await orders.complete(order.value.id, paymentMethod.value, amount)
+    order.value = await orders.complete(
+      order.value.id,
+      paymentMethod.value,
+      amount,
+      paymentReference.value || null,
+    )
     tendered.value = ''
   } catch (e) {
     notice.value = e.message
@@ -173,15 +266,30 @@ async function settle() {
   }
 }
 
+function printOrder(mode) {
+  if (!order.value || dirty.value) {
+    notice.value = 'Save the ticket before printing.'
+    return
+  }
+  const target = router.resolve({
+    name: 'print-order',
+    params: { id: order.value.id },
+    query: { mode },
+  })
+  window.open(target.href, '_blank', 'noopener')
+}
+
 function newOrder() {
   if (dirty.value && !window.confirm('Discard unsaved changes to this ticket?')) return
   order.value = null
   cart.value = []
   dirty.value = false
   customerInfo.value = ''
+  voidReasons.value = {}
   tendered.value = ''
+  paymentReference.value = ''
   notice.value = ''
-  paymentMethod.value = 'CASH'
+  paymentMethod.value = methods.value[0]?.code || 'CASH'
   if (route.query.order) {
     router.replace({ name: 'terminal' })
   }
@@ -216,7 +324,7 @@ onBeforeRouteLeave(() => {
       <div class="flex flex-wrap gap-2 mt-5 rise rise-2">
         <button
           class="btn btn-sm"
-          :class="{ 'bg-ink text-paper border-ink': !activeCategory }"
+          :class="{ 'btn-active': !activeCategory }"
           @click="activeCategory = null"
         >
           All
@@ -225,7 +333,7 @@ onBeforeRouteLeave(() => {
           v-for="c in categories"
           :key="c.id"
           class="btn btn-sm"
-          :class="{ 'bg-ink text-paper border-ink': activeCategory === c.id }"
+          :class="{ 'btn-active': activeCategory === c.id }"
           @click="activeCategory = c.id"
         >
           {{ c.name }}
@@ -239,21 +347,24 @@ onBeforeRouteLeave(() => {
         <button
           v-for="(item, idx) in filtered"
           :key="item.id"
-          class="plate text-left p-4 hover:shadow-lift hover:-translate-y-0.5 transition-all disabled:opacity-40 rise"
+          class="plate text-left overflow-hidden hover:shadow-lift hover:-translate-y-0.5 transition-all disabled:opacity-40 rise"
           :class="`rise-${Math.min(idx + 1, 5)}`"
           :disabled="busy || !isEditable"
           @click="add(item)"
         >
-          <div class="flex items-start justify-between gap-2">
-            <h4 class="display text-lg leading-tight">{{ item.name }}</h4>
-            <span v-if="qtyOf(item.id)" class="tag border-ember/60 text-ember">{{ qtyOf(item.id) }}</span>
-          </div>
-          <p class="text-xs text-ink-3 mt-1.5 line-clamp-2 min-h-[2rem]">
-            {{ item.description || item.menuCategory?.name }}
-          </p>
-          <div class="flex items-center justify-between mt-3 pt-3 border-t hairline">
-            <span class="mono text-sm font-medium">{{ money(item.price) }}</span>
-            <span class="eyebrow">{{ item.menuCategory?.name }}</span>
+          <MenuThumb :src="item.imageUrl" :alt="item.name" variant="banner" />
+          <div class="p-4">
+            <div class="flex items-start justify-between gap-2">
+              <h4 class="display text-lg leading-tight">{{ item.name }}</h4>
+              <span v-if="qtyOf(item.id)" class="tag border-ember/60 text-ember">{{ qtyOf(item.id) }}</span>
+            </div>
+            <p class="text-xs text-ink-3 mt-1.5 line-clamp-2 min-h-[2rem]">
+              {{ item.description || item.menuCategory?.name }}
+            </p>
+            <div class="flex items-center justify-between mt-3 pt-3 border-t hairline">
+              <span class="mono text-sm font-medium">{{ money(item.price) }}</span>
+              <span class="eyebrow">{{ item.menuCategory?.name }}</span>
+            </div>
           </div>
         </button>
       </div>
@@ -273,10 +384,30 @@ onBeforeRouteLeave(() => {
               <span v-if="dirty" class="tag border-mustard/60 text-mustard">unsaved</span>
             </div>
             <div class="display text-xl mt-0.5">
-              {{ isSettled ? 'Settled' : lines.length ? 'Open ticket' : 'Empty ticket' }}
+              {{
+                isSettled
+                  ? order?.status?.replaceAll('_', ' ')
+                  : lines.length
+                    ? 'Open ticket'
+                    : 'Empty ticket'
+              }}
             </div>
           </div>
-          <button v-if="order || dirty" class="btn btn-sm" @click="newOrder">New</button>
+          <div class="flex items-center gap-1">
+            <button
+              v-if="order"
+              class="btn-icon"
+              type="button"
+              :title="isSettled ? 'Print receipt' : 'Print bill'"
+              :aria-label="isSettled ? 'Print receipt' : 'Print bill'"
+              @click="printOrder(isSettled ? 'receipt' : 'bill')"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path d="M4 1h8v4H4V1zm-2 5h12a1 1 0 0 1 1 1v5h-3v-3H4v3H1V7a1 1 0 0 1 1-1zm4 4h4v4H6v-4z" />
+              </svg>
+            </button>
+            <button v-if="order || dirty" class="btn btn-sm" @click="newOrder">New</button>
+          </div>
         </div>
 
         <div class="px-5 py-4">
@@ -341,8 +472,12 @@ onBeforeRouteLeave(() => {
           <div class="flex justify-between text-sm text-ink-2">
             <span>Subtotal</span><span class="mono">{{ money(subtotal) }}</span>
           </div>
-          <div class="flex justify-between text-sm text-ink-2">
-            <span>Tax (10%)</span><span class="mono">{{ money(tax) }}</span>
+          <div
+            v-for="c in displayCharges"
+            :key="c.code"
+            class="flex justify-between text-sm text-ink-2"
+          >
+            <span>{{ c.label }}</span><span class="mono">{{ money(c.computedAmount) }}</span>
           </div>
           <div class="flex justify-between items-baseline pt-2">
             <span class="display text-lg">Total</span>
@@ -353,15 +488,29 @@ onBeforeRouteLeave(() => {
         <div class="px-5 pb-5 space-y-3">
           <div class="grid grid-cols-3 gap-2">
             <button
-              v-for="m in ['CASH', 'CARD', 'DIGITAL']"
-              :key="m"
+              v-for="m in methods"
+              :key="m.code"
               class="btn btn-sm"
-              :class="{ 'bg-ink text-paper border-ink': paymentMethod === m }"
+              :class="{ 'btn-active': paymentMethod === m.code }"
               :disabled="isSettled"
-              @click="paymentMethod = m"
+              @click="paymentMethod = m.code"
             >
-              {{ m }}
+              {{ m.label }}
             </button>
+          </div>
+
+          <div v-if="!isSettled && selectedMethod && !selectedMethod.isCash">
+            <label class="label" for="reference">Reference (optional)</label>
+            <input
+              id="reference"
+              v-model="paymentReference"
+              class="field mono"
+              placeholder="Card / QRIS transaction id"
+            />
+          </div>
+
+          <div v-if="isSettled && order?.paymentReference" class="mono text-[11px] text-ink-3">
+            REF {{ order.paymentReference }}
           </div>
 
           <div v-if="!isSettled">
@@ -371,8 +520,8 @@ onBeforeRouteLeave(() => {
               v-model="tendered"
               class="field mono"
               type="number"
-              step="0.01"
-              :placeholder="total.toFixed(2)"
+              step="1"
+              :placeholder="String(Math.round(total))"
             />
             <div v-if="tendered && change >= 0" class="mono text-[11px] text-ink-3 mt-1.5">
               Change due {{ money(change) }}
@@ -409,7 +558,7 @@ onBeforeRouteLeave(() => {
       </div>
 
       <p class="mono text-[10px] tracking-widest text-ink-3 mt-3 text-center">
-        PRICES IN USD · TAX APPLIED AT CHECKOUT
+        PRICES IN IDR · TAX APPLIED AT CHECKOUT
       </p>
     </aside>
   </div>

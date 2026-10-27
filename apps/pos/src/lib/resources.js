@@ -44,9 +44,33 @@ export const orders = {
   updateItem: (id, itemId, quantity) =>
     api.put(`/orders/${id}/items/${itemId}`, { quantity }),
   removeItem: (id, itemId) => api.del(`/orders/${id}/items/${itemId}`),
-  complete: (id, paymentMethod, paymentAmount) =>
-    api.post(`/orders/${id}/complete`, { paymentMethod, paymentAmount }),
+  voidItem: (id, itemId, reason) =>
+    api.post(`/orders/${id}/items/${itemId}/void`, { reason }),
+  refund: (id, body) => api.post(`/orders/${id}/refunds`, body),
+  amend: (id) => api.post(`/orders/${id}/amend`),
+  complete: (id, paymentMethod, paymentAmount, paymentReference) =>
+    api.post(`/orders/${id}/complete`, {
+      paymentMethod,
+      paymentAmount,
+      paymentReference,
+    }),
   cancel: (id) => api.post(`/orders/${id}/cancel`),
+}
+
+export const chargeTemplates = {
+  list: (active) =>
+    api.get(
+      `/charge-templates${active === undefined ? '' : `?active=${active}`}`,
+      { auth: false },
+    ),
+}
+
+export const paymentMethods = {
+  list: (active) =>
+    api.get(
+      `/payment-methods${active === undefined ? '' : `?active=${active}`}`,
+      { auth: false },
+    ),
 }
 
 const withQuery = (path, params = {}) => {
@@ -54,6 +78,12 @@ const withQuery = (path, params = {}) => {
     Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''),
   ).toString()
   return `${path}${qs ? `?${qs}` : ''}`
+}
+
+export const reports = {
+  payments: (params = {}) => api.get(withQuery('/reports/payments', params)),
+  exportOrders: (params = {}) =>
+    api.download(withQuery('/orders/export', { ...params, format: 'csv' }), 'orders.csv'),
 }
 
 export const tables = {
