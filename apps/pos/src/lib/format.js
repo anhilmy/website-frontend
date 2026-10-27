@@ -10,6 +10,13 @@ export function money(value) {
   return currency.format(Number.isFinite(n) ? n : 0)
 }
 
+/** Explicit sign for deltas: +Rp 5.000 / −Rp 5.000 / Rp 0. */
+export function signedMoney(value) {
+  const n = typeof value === 'number' ? value : Number(value ?? 0)
+  if (!Number.isFinite(n) || n === 0) return money(0)
+  return `${n > 0 ? '+' : '−'}${money(Math.abs(n))}`
+}
+
 export function dateTime(value) {
   if (!value) return '—'
   return new Date(value).toLocaleString('en-GB', {

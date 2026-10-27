@@ -3,10 +3,12 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import Pencil from '@primevue/icons/pencil'
 import Trash from '@primevue/icons/trash'
 import Times from '@primevue/icons/times'
+import Filter from '@primevue/icons/filter'
 import { categories as catApi, items as itemApi } from '../lib/resources'
 import { isManager } from '../lib/session'
 import { money } from '../lib/format'
 import MenuThumb from '../components/MenuThumb.vue'
+import ModifierSheet from '../components/ModifierSheet.vue'
 
 const canEdit = isManager()
 
@@ -27,6 +29,7 @@ const itemForm = reactive({
   imageUrl: '',
 })
 const editing = ref(false)
+const modifierItem = ref(null)
 
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase()
@@ -243,6 +246,15 @@ onMounted(loadAll)
                   <button
                     class="btn-icon"
                     type="button"
+                    title="Modifiers"
+                    aria-label="Modifiers"
+                    @click="modifierItem = item"
+                  >
+                    <Filter />
+                  </button>
+                  <button
+                    class="btn-icon"
+                    type="button"
                     title="Edit item"
                     aria-label="Edit item"
                     @click="startEdit(item)"
@@ -270,6 +282,12 @@ onMounted(loadAll)
         </table>
       </section>
     </div>
+
+    <ModifierSheet
+      v-if="modifierItem"
+      :item="modifierItem"
+      @close="modifierItem = null"
+    />
 
     <!-- Edit / create sheet -->
     <div

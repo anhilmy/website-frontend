@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { orders } from '../lib/resources'
-import { money, dateTime } from '../lib/format'
+import { money, dateTime, signedMoney } from '../lib/format'
 
 const route = useRoute()
 const router = useRouter()
@@ -183,7 +183,22 @@ onUnmounted(() => pageStyle?.remove())
           </thead>
           <tbody>
             <tr v-for="line in activeItems" :key="line.id">
-              <td class="py-1.5 pr-2">{{ line.menuItem?.name }}</td>
+              <td class="py-1.5 pr-2">
+                {{ line.menuItem?.name }}
+                <template v-if="line.modifiers?.length">
+                  <div
+                    v-for="m in line.modifiers"
+                    :key="m.id"
+                    class="mono text-[10px] text-ink-3 pl-2"
+                  >
+                    + {{ m.optionName }}<template v-if="Number(m.priceDelta)">
+                      ({{ signedMoney(m.priceDelta) }})</template>
+                  </div>
+                </template>
+                <div v-if="line.note" class="mono text-[10px] text-ink-3 pl-2">
+                  “{{ line.note }}”
+                </div>
+              </td>
               <td class="text-center mono">{{ line.quantity }}</td>
               <td class="text-right mono whitespace-nowrap">{{ money(line.totalPrice) }}</td>
             </tr>

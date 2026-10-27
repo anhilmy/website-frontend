@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { orders, paymentMethods } from '../lib/resources'
-import { money, dateTime } from '../lib/format'
+import { money, dateTime, signedMoney } from '../lib/format'
 import { isManager } from '../lib/session'
 import StatusTag from '../components/StatusTag.vue'
 
@@ -276,6 +276,24 @@ onMounted(async () => {
             <span class="flex-1 min-w-0">
               {{ line.menuItem?.name }}
               <span
+                v-if="line.modifiers?.length"
+                class="block mono text-[10px] text-ink-3 mt-0.5"
+              >
+                <span v-for="(m, idx) in line.modifiers" :key="m.id || idx">
+                  {{ m.groupName }}: {{ m.optionName }}<template v-if="Number(m.priceDelta)">
+                    ({{ signedMoney(m.priceDelta) }})</template><template
+                    v-if="idx < line.modifiers.length - 1"
+                  >
+                    · </template>
+                </span>
+              </span>
+              <span
+                v-if="line.note"
+                class="block text-[11px] italic text-ink-3 mt-0.5"
+              >
+                “{{ line.note }}”
+              </span>
+              <span
                 v-if="line.status === 'VOIDED'"
                 class="block mono text-[10px] tracking-widest text-ember mt-0.5 no-underline"
               >
@@ -407,7 +425,12 @@ onMounted(async () => {
             <label class="label">Line</label>
             <select v-model="refundForm.transactionItemId" class="field">
               <option v-for="line in refundableItems" :key="line.id" :value="line.id">
-                {{ line.menuItem?.name }} — {{ remainingQty(line) }} remaining
+                {{ line.menuItem?.name
+                }}{{
+                  line.modifiers?.length
+                    ? ` (${line.modifiers.map((m) => m.optionName).join(', ')})`
+                    : ''
+                }} — {{ remainingQty(line) }} remaining
               </option>
             </select>
           </div>

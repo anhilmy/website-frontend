@@ -16,6 +16,19 @@ export const menu = {
   item: (id) => api.get(`/menu/items/${id}`, { auth: false }),
 }
 
+export const modifiers = {
+  forItem: (menuItemId) =>
+    api.get(`/menu/items/${menuItemId}/modifiers`, { auth: false }),
+  list: (menuItemId) => api.get(withQuery('/modifier-groups', { menuItemId })),
+  createGroup: (body) => api.post('/modifier-groups', body),
+  updateGroup: (id, body) => api.put(`/modifier-groups/${id}`, body),
+  deactivateGroup: (id) => api.del(`/modifier-groups/${id}`),
+  createOption: (groupId, body) =>
+    api.post(`/modifier-groups/${groupId}/options`, body),
+  updateOption: (id, body) => api.put(`/modifier-options/${id}`, body),
+  deactivateOption: (id) => api.del(`/modifier-options/${id}`),
+}
+
 export const categories = {
   list: (active) => api.get(`/categories${active === undefined ? '' : `?active=${active}`}`),
   create: (body) => api.post('/categories', body),
@@ -39,10 +52,8 @@ export const orders = {
   create: (customerInfo) => api.post('/orders', { customerInfo }),
   list: (params = {}) => api.get(withQuery('/orders', params)),
   get: (id) => api.get(`/orders/${id}`),
-  addItem: (id, menuItemId, quantity) =>
-    api.post(`/orders/${id}/items`, { menuItemId, quantity }),
-  updateItem: (id, itemId, quantity) =>
-    api.put(`/orders/${id}/items/${itemId}`, { quantity }),
+  addItem: (id, body) => api.post(`/orders/${id}/items`, body),
+  updateItem: (id, itemId, body) => api.put(`/orders/${id}/items/${itemId}`, body),
   removeItem: (id, itemId) => api.del(`/orders/${id}/items/${itemId}`),
   voidItem: (id, itemId, reason) =>
     api.post(`/orders/${id}/items/${itemId}/void`, { reason }),

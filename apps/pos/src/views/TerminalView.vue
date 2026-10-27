@@ -4,11 +4,13 @@ import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import {
   chargeTemplates as chargeApi,
   menu,
+  modifiers as modifierApi,
   orders,
   paymentMethods as methodApi,
 } from '../lib/resources'
 import { money } from '../lib/format'
 import MenuThumb from '../components/MenuThumb.vue'
+import ModifierPicker from '../components/ModifierPicker.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -37,6 +39,10 @@ const dirty = ref(false)
 const busy = ref(false)
 const notice = ref('')
 const voidReasons = ref({})
+const pickerItem = ref(null)
+const pickerGroups = ref([])
+const pickerLoading = ref(false)
+const pickerError = ref('')
 const customerInfo = ref('')
 const paymentMethod = ref('CASH')
 const paymentReference = ref('')
@@ -102,15 +108,50 @@ const change = computed(() => {
   return Number.isFinite(t) ? t - total.value : 0
 })
 
+// Line identity: item + sorted option ids + note. Options whose menu record was deleted have a
+// null id, so fall back to the snapshotted option names to keep distinct variants apart.
+function lineSignature(menuItemId, modifiers, note) {
+  const list = modifiers || []
+  const ids = list
+    .map((m) => m.modifierOptionId)
+    .filter((id) => id != null)
+    .sort((a, b) => a - b)
+  const signature =
+    list.length && ids.length === list.length
+      ? ids.join(',')
+      : list
+          .map((m) => m.optionName)
+          .sort()
+          .join('+')
+  return `${menuItemId}|${signature}|${note || ''}`
+}
+
+function snapshotModifiers(item) {
+  return (item.modifiers || []).map((m) => ({
+    modifierOptionId: m.modifierOptionId,
+    groupName: m.groupName,
+    optionName: m.optionName,
+    priceDelta: Number(m.priceDelta),
+  }))
+}
+
 function syncCartFromOrder() {
   cart.value = (order.value?.items ?? [])
     .filter((l) => l.status !== 'VOIDED')
-    .map((l) => ({
-      menuItemId: l.menuItem?.id,
-      name: l.menuItem?.name,
-      unitPrice: Number(l.unitPrice),
-      quantity: l.quantity,
-    }))
+    .map((l) => {
+      const modifiers = snapshotModifiers(l)
+      const note = l.note || ''
+      return {
+        key: lineSignature(l.menuItem?.id, modifiers, note),
+        orderItemId: l.id,
+        menuItemId: l.menuItem?.id,
+        name: l.menuItem?.name,
+        unitPrice: Number(l.unitPrice),
+        quantity: l.quantity,
+        note,
+        modifiers,
+      }
+    })
 }
 
 onMounted(async () => {
@@ -146,23 +187,94 @@ onMounted(async () => {
 })
 
 function qtyOf(menuItemId) {
-  return cart.value.find((l) => l.menuItemId === menuItemId)?.quantity || 0
+  return cart.value
+    .filter((l) => l.menuItemId === menuItemId)
+    .reduce((sum, l) => sum + l.quantity, 0)
+}
+
+function addLine(line) {
+  const key = lineSignature(line.menuItemId, line.modifiers, line.note)
+  const existing = cart.value.find((l) => l.key === key)
+  if (existing) {
+    existing.quantity += line.quantity
+  } else {
+    cart.value.push({ ...line, key })
+  }
+  dirty.value = true
+}
+
+async function openPicker(item) {
+  if (busy.value || !isEditable.value) return
+  notice.value = ''
+  pickerItem.value = item
+  pickerGroups.value = []
+  pickerError.value = ''
+  pickerLoading.value = true
+  try {
+    pickerGroups.value = await modifierApi.forItem(item.id)
+  } catch (e) {
+    pickerError.value = e.message
+  } finally {
+    pickerLoading.value = false
+  }
+}
+
+function closePicker() {
+  pickerItem.value = null
+  pickerGroups.value = []
+  pickerError.value = ''
+}
+
+function handlePickerAdd(payload) {
+  if (!pickerItem.value) return
+  addLine({
+    menuItemId: pickerItem.value.id,
+    name: pickerItem.value.name,
+    unitPrice: payload.unitPrice,
+    quantity: payload.quantity,
+    note: payload.note || '',
+    modifiers: payload.modifiers,
+  })
+  closePicker()
 }
 
 function add(item) {
   if (busy.value || !isEditable.value) return
+  if (item.hasModifiers) {
+    openPicker(item)
+    return
+  }
   notice.value = ''
-  delete voidReasons.value[item.id]
-  const line = cart.value.find((l) => l.menuItemId === item.id)
-  if (line) line.quantity += 1
-  else
-    cart.value.push({
-      menuItemId: item.id,
-      name: item.name,
-      unitPrice: Number(item.price),
-      quantity: 1,
-    })
+  addLine({
+    menuItemId: item.id,
+    name: item.name,
+    unitPrice: Number(item.price),
+    quantity: 1,
+    note: '',
+    modifiers: [],
+  })
+}
+
+/**
+ * A manager can add a required group while this terminal is open. The next save then rejects
+ * the old plain line; refresh the catalogue and let the cashier configure it instead of
+ * leaving them stuck with an unsellable ticket.
+ */
+async function recoverFromMenuChange(error) {
+  if (!/option|modifier/i.test(error?.message || '')) return
+  const stale = error?.line || cart.value.find((line) => !line.modifiers.length)
+  if (!stale) return
+  try {
+    items.value = await menu.items()
+  } catch {
+    return
+  }
+  const item = items.value.find((i) => i.id === stale.menuItemId)
+  if (!item?.hasModifiers) return
+  cart.value = cart.value.filter((line) => line !== stale)
   dirty.value = true
+  await openPicker(item)
+  notice.value = `${item.name} now requires options — choose them and save again.`
 }
 
 function setQty(line, quantity) {
@@ -175,14 +287,18 @@ function setQty(line, quantity) {
   }
 }
 
+function serverLineKey(line) {
+  return lineSignature(line.menuItem?.id, snapshotModifiers(line), line.note || '')
+}
+
 function removeLine(line) {
   const saved = (order.value?.items ?? []).some(
-    (l) => l.status !== 'VOIDED' && l.menuItem?.id === line.menuItemId,
+    (l) => l.status !== 'VOIDED' && serverLineKey(l) === line.key,
   )
   if (saved) {
     const reason = window.prompt('Reason for removing this item?', 'Removed at till')
     if (!reason || !reason.trim()) return
-    voidReasons.value[line.menuItemId] = reason.trim()
+    voidReasons.value[line.key] = reason.trim()
   }
   cart.value = cart.value.filter((l) => l !== line)
   dirty.value = true
@@ -193,28 +309,42 @@ async function persistCart() {
     order.value = await orders.create(customerInfo.value || null)
   }
 
-  const serverByItem = new Map(
+  const serverByKey = new Map(
     (order.value.items ?? [])
       .filter((l) => l.status !== 'VOIDED')
-      .map((l) => [l.menuItem?.id, l]),
+      .map((l) => [serverLineKey(l), l]),
   )
-  const cartByItem = new Map(cart.value.map((l) => [l.menuItemId, l]))
+  const cartByKey = new Map(cart.value.map((l) => [l.key, l]))
 
   for (const line of cart.value) {
-    const existing = serverByItem.get(line.menuItemId)
+    const existing = serverByKey.get(line.key)
     if (!existing) {
-      order.value = await orders.addItem(order.value.id, line.menuItemId, line.quantity)
+      try {
+        order.value = await orders.addItem(order.value.id, {
+          menuItemId: line.menuItemId,
+          quantity: line.quantity,
+          modifierOptionIds: line.modifiers
+            .map((m) => m.modifierOptionId)
+            .filter((id) => id != null),
+          note: line.note || null,
+        })
+      } catch (error) {
+        error.line = line
+        throw error
+      }
     } else if (existing.quantity !== line.quantity) {
-      order.value = await orders.updateItem(order.value.id, existing.id, line.quantity)
+      order.value = await orders.updateItem(order.value.id, existing.id, {
+        quantity: line.quantity,
+      })
     }
   }
 
-  for (const [menuItemId, line] of serverByItem) {
-    if (!cartByItem.has(menuItemId)) {
+  for (const [key, line] of serverByKey) {
+    if (!cartByKey.has(key)) {
       order.value = await orders.voidItem(
         order.value.id,
         line.id,
-        voidReasons.value[menuItemId] || 'Removed at till',
+        voidReasons.value[key] || 'Removed at till',
       )
     }
   }
@@ -239,6 +369,8 @@ async function saveCart() {
     return true
   } catch (e) {
     notice.value = e.message
+    busy.value = false
+    await recoverFromMenuChange(e)
     return false
   } finally {
     busy.value = false
@@ -261,6 +393,8 @@ async function settle() {
     tendered.value = ''
   } catch (e) {
     notice.value = e.message
+    busy.value = false
+    await recoverFromMenuChange(e)
   } finally {
     busy.value = false
   }
@@ -286,6 +420,7 @@ function newOrder() {
   dirty.value = false
   customerInfo.value = ''
   voidReasons.value = {}
+  closePicker()
   tendered.value = ''
   paymentReference.value = ''
   notice.value = ''
@@ -365,6 +500,9 @@ onBeforeRouteLeave(() => {
               <span class="mono text-sm font-medium">{{ money(item.price) }}</span>
               <span class="eyebrow">{{ item.menuCategory?.name }}</span>
             </div>
+            <div v-if="item.hasModifiers" class="mono text-[9px] tracking-[0.2em] text-ember mt-1.5">
+              CUSTOMIZABLE
+            </div>
           </div>
         </button>
       </div>
@@ -433,9 +571,21 @@ onBeforeRouteLeave(() => {
             Tap a menu item to start the ticket.
           </p>
           <ul class="space-y-3">
-            <li v-for="line in lines" :key="line.menuItemId" class="flex items-start gap-3">
+            <li v-for="line in lines" :key="line.key" class="flex items-start gap-3">
               <div class="flex-1 min-w-0">
                 <div class="text-sm font-medium truncate">{{ line.name }}</div>
+                <div
+                  v-if="line.modifiers.length"
+                  class="text-[11px] text-ink-3 mt-0.5 truncate"
+                >
+                  {{ line.modifiers.map((m) => m.optionName).join(' · ') }}
+                </div>
+                <div
+                  v-if="line.note"
+                  class="text-[11px] italic text-ink-3 mt-0.5 truncate"
+                >
+                  “{{ line.note }}”
+                </div>
                 <div class="mono text-[11px] text-ink-3 mt-0.5">
                   {{ money(line.unitPrice) }} × {{ line.quantity }}
                 </div>
@@ -561,5 +711,15 @@ onBeforeRouteLeave(() => {
         PRICES IN IDR · TAX APPLIED AT CHECKOUT
       </p>
     </aside>
+
+    <ModifierPicker
+      v-if="pickerItem"
+      :item="pickerItem"
+      :groups="pickerGroups"
+      :loading="pickerLoading"
+      :error="pickerError"
+      @add="handlePickerAdd"
+      @close="closePicker"
+    />
   </div>
 </template>
