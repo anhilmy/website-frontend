@@ -1,6 +1,8 @@
 # POS UI adjustments — plan
 
-Six adjustments to `apps/pos`. Plan only; no implementation until you say go.
+Six adjustments to `apps/pos`.
+
+> **Status (2026-10-27):** implemented. Evidence: `evidence/02`–`13`.
 
 ## Confirmed decisions
 

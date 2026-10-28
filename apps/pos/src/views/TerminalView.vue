@@ -9,6 +9,8 @@ import {
   paymentMethods as methodApi,
 } from '../lib/resources'
 import { money } from '../lib/format'
+import { evaluateCharges } from '../lib/charges'
+import { isManager } from '../lib/session'
 import MenuThumb from '../components/MenuThumb.vue'
 import ModifierPicker from '../components/ModifierPicker.vue'
 
@@ -47,6 +49,18 @@ const customerInfo = ref('')
 const paymentMethod = ref('CASH')
 const paymentReference = ref('')
 const tendered = ref('')
+const orderCharges = ref([])
+const showChargeForm = ref(false)
+const chargeBusy = ref(false)
+const chargeError = ref('')
+const chargeForm = ref({
+  label: '',
+  calcType: 'FIXED',
+  value: '',
+  basis: 'SUBTOTAL',
+})
+
+const isManagerUser = isManager()
 
 const selectedMethod = computed(() =>
   methods.value.find((m) => m.code === paymentMethod.value),
@@ -66,28 +80,23 @@ const subtotal = computed(() => lines.value.reduce((sum, l) => sum + l.unitPrice
 
 // Mirrors TransactionService.recalcTotals: evaluate in sort order, round each charge once.
 const localCharges = computed(() => {
-  const definitions = templates.value.length
-    ? templates.value
-    : [
-        {
-          code: 'TAX',
-          label: 'Tax',
-          calcType: 'PERCENTAGE',
-          value: TAX_RATE,
-          basis: 'SUBTOTAL',
-          taxable: false,
-          isTax: true,
-          sortOrder: 10,
-        },
-      ]
-  let runningBase = subtotal.value
-  return definitions.map((t) => {
-    const base = t.basis === 'RUNNING_TOTAL' ? runningBase : subtotal.value
-    const raw = t.calcType === 'FIXED' ? Number(t.value) : base * Number(t.value)
-    const amount = Math.round(raw * 100) / 100
-    if (t.taxable) runningBase += amount
-    return { ...t, computedAmount: amount }
-  })
+  const definitions = order.value
+    ? orderCharges.value
+    : templates.value.length
+      ? templates.value
+      : [
+          {
+            code: 'TAX',
+            label: 'Tax',
+            calcType: 'PERCENTAGE',
+            value: TAX_RATE,
+            basis: 'SUBTOTAL',
+            taxable: false,
+            isTax: true,
+            sortOrder: 10,
+          },
+        ]
+  return evaluateCharges(definitions, subtotal.value)
 })
 
 // A saved, untouched order shows its own snapshot; an edited ticket re-evaluates locally.
@@ -154,6 +163,20 @@ function syncCartFromOrder() {
     })
 }
 
+function syncChargesFromOrder() {
+  orderCharges.value = (order.value?.charges ?? []).map((c) => ({
+    id: c.id,
+    code: c.code,
+    label: c.label,
+    calcType: c.calcType,
+    value: Number(c.value),
+    basis: c.basis,
+    sortOrder: c.sortOrder,
+    taxable: c.taxable,
+    isTax: c.isTax,
+  }))
+}
+
 onMounted(async () => {
   try {
     const [cats, its, availableMethods, chargeDefs] = await Promise.all([
@@ -178,6 +201,7 @@ onMounted(async () => {
       if (order.value.paymentMethod) paymentMethod.value = order.value.paymentMethod
       paymentReference.value = order.value.paymentReference || ''
       syncCartFromOrder()
+      syncChargesFromOrder()
     }
   } catch (e) {
     error.value = e.message
@@ -351,6 +375,7 @@ async function persistCart() {
 
   order.value = await orders.get(order.value.id)
   syncCartFromOrder()
+  syncChargesFromOrder()
   voidReasons.value = {}
   dirty.value = false
 }
@@ -400,6 +425,80 @@ async function settle() {
   }
 }
 
+function resetChargeForm() {
+  chargeForm.value = {
+    label: '',
+    calcType: 'FIXED',
+    value: '',
+    basis: 'SUBTOTAL',
+  }
+  chargeError.value = ''
+}
+
+function toggleChargeForm() {
+  showChargeForm.value = !showChargeForm.value
+  if (!showChargeForm.value) resetChargeForm()
+}
+
+async function addManualCharge() {
+  if (!isManagerUser || chargeBusy.value || busy.value || !isEditable.value) return
+  const label = chargeForm.value.label.trim()
+  const value = Number(chargeForm.value.value)
+  if (!label) {
+    chargeError.value = 'Give the charge a label.'
+    return
+  }
+  if (!Number.isFinite(value) || value === 0) {
+    chargeError.value = 'Enter a non-zero amount or percentage.'
+    return
+  }
+  chargeError.value = ''
+  chargeBusy.value = true
+  try {
+    if (!order.value || dirty.value) {
+      const saved = await saveCart()
+      if (!saved) return
+    }
+    order.value = await orders.addCharge(order.value.id, {
+      label,
+      calcType: chargeForm.value.calcType,
+      value,
+      basis: chargeForm.value.basis,
+    })
+    syncCartFromOrder()
+    syncChargesFromOrder()
+    dirty.value = false
+    showChargeForm.value = false
+    resetChargeForm()
+  } catch (e) {
+    chargeError.value = e.message
+  } finally {
+    chargeBusy.value = false
+  }
+}
+
+async function removeOrderCharge(charge) {
+  if (!isManagerUser || chargeBusy.value || busy.value || !isEditable.value || !charge.id)
+    return
+  if (!window.confirm(`Remove “${charge.label}” from this bill?`)) return
+  chargeError.value = ''
+  chargeBusy.value = true
+  try {
+    if (!order.value || dirty.value) {
+      const saved = await saveCart()
+      if (!saved) return
+    }
+    order.value = await orders.removeCharge(order.value.id, charge.id)
+    syncCartFromOrder()
+    syncChargesFromOrder()
+    dirty.value = false
+  } catch (e) {
+    chargeError.value = e.message
+  } finally {
+    chargeBusy.value = false
+  }
+}
+
 function printOrder(mode) {
   if (!order.value || dirty.value) {
     notice.value = 'Save the ticket before printing.'
@@ -417,10 +516,13 @@ function newOrder() {
   if (dirty.value && !window.confirm('Discard unsaved changes to this ticket?')) return
   order.value = null
   cart.value = []
+  orderCharges.value = []
   dirty.value = false
   customerInfo.value = ''
   voidReasons.value = {}
   closePicker()
+  showChargeForm.value = false
+  resetChargeForm()
   tendered.value = ''
   paymentReference.value = ''
   notice.value = ''
@@ -624,11 +726,80 @@ onBeforeRouteLeave(() => {
           </div>
           <div
             v-for="c in displayCharges"
-            :key="c.code"
-            class="flex justify-between text-sm text-ink-2"
+            :key="c.id || c.code"
+            class="flex items-center justify-between gap-2 text-sm text-ink-2"
           >
-            <span>{{ c.label }}</span><span class="mono">{{ money(c.computedAmount) }}</span>
+            <span class="truncate">{{ c.label }}</span>
+            <span class="flex items-center gap-2 shrink-0">
+              <span class="mono">{{ money(c.computedAmount) }}</span>
+              <button
+                v-if="isManagerUser && !dirty && order && c.id"
+                class="text-ink-3 hover:text-ember text-base leading-none"
+                title="Remove charge"
+                aria-label="Remove charge"
+                :disabled="chargeBusy"
+                @click="removeOrderCharge(c)"
+              >
+                ×
+              </button>
+            </span>
           </div>
+
+          <div v-if="isManagerUser && isEditable" class="pt-1">
+            <button
+              v-if="!showChargeForm"
+              class="btn btn-sm"
+              :disabled="chargeBusy || busy"
+              @click="toggleChargeForm"
+            >
+              + Charge / discount
+            </button>
+            <div v-else class="border hairline rounded-card p-3 space-y-2">
+              <div class="grid grid-cols-2 gap-2">
+                <input
+                  v-model="chargeForm.label"
+                  class="field"
+                  placeholder="Label (e.g. Staff discount)"
+                  aria-label="Charge label"
+                />
+                <select v-model="chargeForm.calcType" class="field" aria-label="Charge type">
+                  <option value="FIXED">Fixed amount</option>
+                  <option value="PERCENTAGE">Percentage</option>
+                </select>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <input
+                  v-model="chargeForm.value"
+                  class="field mono"
+                  type="number"
+                  step="0.01"
+                  placeholder="-5000 or -0.10"
+                  aria-label="Charge value"
+                />
+                <select v-model="chargeForm.basis" class="field" aria-label="Charge basis">
+                  <option value="SUBTOTAL">On subtotal</option>
+                  <option value="RUNNING_TOTAL">On running total</option>
+                </select>
+              </div>
+              <p class="mono text-[10px] text-ink-3">
+                Negative = discount. Percentages are fractions: 0.10 = 10%.
+              </p>
+              <p v-if="chargeError" class="text-xs text-ember">{{ chargeError }}</p>
+              <div class="flex gap-2">
+                <button
+                  class="btn btn-sm btn-ink"
+                  :disabled="chargeBusy"
+                  @click="addManualCharge"
+                >
+                  Add
+                </button>
+                <button class="btn btn-sm" :disabled="chargeBusy" @click="toggleChargeForm">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div class="flex justify-between items-baseline pt-2">
             <span class="display text-lg">Total</span>
             <span class="mono text-2xl font-bold">{{ money(total) }}</span>

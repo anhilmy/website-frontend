@@ -55,6 +55,9 @@ export const orders = {
   addItem: (id, body) => api.post(`/orders/${id}/items`, body),
   updateItem: (id, itemId, body) => api.put(`/orders/${id}/items/${itemId}`, body),
   removeItem: (id, itemId) => api.del(`/orders/${id}/items/${itemId}`),
+  addCharge: (id, body) => api.post(`/orders/${id}/charges`, body),
+  updateCharge: (id, chargeId, body) => api.put(`/orders/${id}/charges/${chargeId}`, body),
+  removeCharge: (id, chargeId) => api.del(`/orders/${id}/charges/${chargeId}`),
   voidItem: (id, itemId, reason) =>
     api.post(`/orders/${id}/items/${itemId}/void`, { reason }),
   refund: (id, body) => api.post(`/orders/${id}/refunds`, body),
