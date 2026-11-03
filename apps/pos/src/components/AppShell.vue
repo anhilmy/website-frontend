@@ -3,6 +3,7 @@ import { computed, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { session, logout, isManager } from '../lib/session'
 import { api } from '../lib/api'
+import { settings as appSettings, ensureSettings } from '../lib/settings'
 
 const route = useRoute()
 const router = useRouter()
@@ -14,7 +15,10 @@ const nav = computed(() => {
     { name: 'orders', label: 'Orders', hint: 'History' },
     { name: 'menu', label: 'Menu', hint: 'Catalogue' },
   ]
-  if (isManager()) links.push({ name: 'users', label: 'Staff', hint: 'Accounts' })
+  if (isManager()) {
+    links.push({ name: 'users', label: 'Staff', hint: 'Accounts' })
+    links.push({ name: 'settings', label: 'Settings', hint: 'Customize' })
+  }
   return links
 })
 
@@ -31,12 +35,16 @@ const title = computed(() => {
     order: 'Order',
     menu: 'Menu',
     users: 'Staff',
+    settings: 'Settings',
   }
   return map[route.name] || 'Counter'
 })
 
+const brandName = computed(() => appSettings.data.systemName || 'Counter')
+
 const apiOnline = ref(false)
 onMounted(async () => {
+  ensureSettings()
   try {
     await api.get('/healthcheck', { auth: false })
     apiOnline.value = true
@@ -61,7 +69,7 @@ const initials = computed(() => (session.user?.username || '?').slice(0, 2).toUp
         <RouterLink to="/terminal" class="block group">
           <div class="eyebrow text-ember">Est. 2026</div>
           <h1 class="display text-3xl leading-none mt-1 group-hover:text-ember transition-colors">
-            Counter
+            {{ brandName }}
           </h1>
           <div class="mono text-[10px] tracking-[0.2em] text-ink-3 mt-1.5">POINT OF SALE</div>
         </RouterLink>
@@ -103,7 +111,7 @@ const initials = computed(() => (session.user?.username || '?').slice(0, 2).toUp
             </div>
           </div>
         </div>
-        <button class="btn btn-sm w-full mt-3" @click="signOut">Close shift</button>
+        <button class="btn btn-sm w-full mt-3" @click="signOut">Logout</button>
       </div>
     </aside>
 

@@ -115,6 +115,15 @@ export const tables = {
   unjoin: (id) => api.post(`/tables/${id}/unjoin`),
 }
 
+export const settings = {
+  get: () => api.get('/settings'),
+  update: (body) => api.put('/settings', body),
+}
+
+export const branding = {
+  get: () => api.get('/branding', { auth: false }),
+}
+
 export const users = {
   list: () => api.get('/users'),
   create: (body) => api.post('/users', body),

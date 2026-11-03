@@ -8,6 +8,7 @@ import OrdersView from '../views/OrdersView.vue'
 import OrderDetailView from '../views/OrderDetailView.vue'
 import MenuView from '../views/MenuView.vue'
 import UsersView from '../views/UsersView.vue'
+import SettingsView from '../views/SettingsView.vue'
 import PrintOrderView from '../views/PrintOrderView.vue'
 import NotFound from '../components/NotFound.vue'
 
@@ -22,6 +23,7 @@ const router = createRouter({
     { path: '/orders/:id', name: 'order', component: OrderDetailView },
     { path: '/menu', name: 'menu', component: MenuView },
     { path: '/users', name: 'users', component: UsersView, meta: { manager: true } },
+    { path: '/settings', name: 'settings', component: SettingsView, meta: { manager: true } },
     {
       path: '/print/orders/:id',
       name: 'print-order',

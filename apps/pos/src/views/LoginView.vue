@@ -1,7 +1,8 @@
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { login } from '../lib/session'
+import { branding, ensureBranding } from '../lib/branding'
 
 const route = useRoute()
 const router = useRouter()
@@ -16,6 +17,8 @@ function fill(u, p) {
   password.value = p
   error.value = ''
 }
+
+onMounted(() => ensureBranding())
 
 async function submit() {
   error.value = ''
@@ -36,9 +39,11 @@ async function submit() {
     <!-- Brand panel -->
     <section class="relative hidden lg:flex flex-col justify-between bg-ink text-paper p-12 overflow-hidden">
       <div class="rise rise-1">
-        <h2 class="text-[clamp(3.5rem,7vw,6.5rem)] text-ember">Point of Sale</h2>
+        <h2 class="text-[clamp(3.5rem,7vw,6.5rem)] text-ember">
+          {{ branding.data.systemName }}
+        </h2>
         <h1 class="display text-[clamp(3.5rem,7vw,6.5rem)] leading-[0.92] mt-4 font-black">
-          ChocoCaffe
+          {{ branding.data.companyName }}
         </h1>
         <p class="mt-5 max-w-md text-paper/70 text-lg leading-relaxed">
         </p>
@@ -70,8 +75,8 @@ async function submit() {
     <section class="flex items-center justify-center p-8">
       <div class="w-full max-w-sm">
         <div class="lg:hidden mb-8 rise rise-1">
-          <div class="eyebrow text-ember">Point of sale</div>
-          <h1 class="display text-5xl mt-2">Counter</h1>
+          <div class="eyebrow text-ember">{{ branding.data.systemName }}</div>
+          <h1 class="display text-5xl mt-2">{{ branding.data.companyName }}</h1>
         </div>
 
         <h2 class="display text-3xl rise rise-1">Open your shift</h2>
