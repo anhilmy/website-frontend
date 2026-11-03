@@ -2,7 +2,8 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { orders } from '../lib/resources'
-import { money, dateTime, signedMoney } from '../lib/format'
+import { settings as appSettings, ensureSettings } from '../lib/settings'
+import ReceiptPaper from '../components/ReceiptPaper.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -14,45 +15,13 @@ const error = ref('')
 const mode = computed(() => (route.query.mode === 'receipt' ? 'receipt' : 'bill'))
 const format = computed(() => (route.query.format === 'a4' ? 'a4' : '80mm'))
 const isReceipt = computed(() => mode.value === 'receipt')
-const change = computed(
-  () => Number(order.value?.paymentAmount || 0) - Number(order.value?.totalAmount || 0),
-)
-const activeItems = computed(() =>
-  (order.value?.items || []).filter((line) => line.status !== 'VOIDED'),
-)
-const subtotal = computed(() => {
-  const stored = Number(order.value?.subtotalAmount || 0)
-  if (stored) return stored
-  return activeItems.value.reduce(
-    (sum, line) => sum + Number(line.totalPrice ?? line.unitPrice * line.quantity),
-    0,
-  )
-})
-const refundedAmount = computed(() => Number(order.value?.refundedAmount || 0))
-const netAmount = computed(
-  () => Number(order.value?.totalAmount || 0) - refundedAmount.value,
-)
-const footerText = computed(() => {
-  switch (order.value?.status) {
-    case 'COMPLETED':
-      return 'PAID IN FULL · THANK YOU'
-    case 'PARTIALLY_REFUNDED':
-      return 'PARTIALLY REFUNDED'
-    case 'REFUNDED':
-      return 'REFUNDED IN FULL'
-    case 'CANCELLED':
-      return 'CANCELLED'
-    case 'AMENDED':
-      return 'AMENDED · SEE LINKED BILL'
-    default:
-      return 'NOT YET PAID · PLEASE SETTLE AT THE COUNTER'
-  }
-})
 
 onMounted(async () => {
+  ensureSettings()
   try {
     order.value = await orders.get(route.params.id)
-    document.title = `${isReceipt.value ? 'Receipt' : 'Bill'} #${String(order.value.id).padStart(3, '0')}`
+    const number = order.value.receiptNumber || `#${String(order.value.id).padStart(3, '0')}`
+    document.title = `${isReceipt.value ? 'Receipt' : 'Bill'} ${number}`
   } catch (e) {
     error.value = e.message
   } finally {
@@ -138,120 +107,7 @@ onUnmounted(() => pageStyle?.remove())
       class="print-sheet mx-auto bg-paper shadow-lift"
       :class="format === 'a4' ? 'sheet-a4' : 'sheet-80'"
     >
-      <div class="recv px-6 py-7">
-        <header class="text-center">
-          <div class="eyebrow">Counter · Terminal 01</div>
-          <h1 class="display text-2xl mt-2">ChocoCaffe</h1>
-          <p class="mono text-[10px] tracking-[0.2em] text-ink-3 mt-1">
-            EST. 2026 · JAKARTA
-          </p>
-          <div class="dashed my-4"></div>
-          <div class="flex items-center justify-between mono text-[11px] tracking-widest">
-            <span>{{ isReceipt ? 'RECEIPT' : 'BILL' }}</span>
-            <span>#{{ String(order.id).padStart(3, '0') }}</span>
-          </div>
-        </header>
-
-        <div class="dashed my-4"></div>
-
-        <dl class="mono text-[11px] grid grid-cols-2 gap-y-1.5">
-          <dt class="text-ink-3">DATE</dt>
-          <dd class="text-right">{{ dateTime(order.createdAt) }}</dd>
-          <dt class="text-ink-3">CUSTOMER</dt>
-          <dd class="text-right">{{ order.customerInfo || 'Walk-in' }}</dd>
-          <dt class="text-ink-3">CASHIER</dt>
-          <dd class="text-right">{{ order.cashier?.username }}</dd>
-          <template v-if="isReceipt">
-            <dt class="text-ink-3">PAYMENT</dt>
-            <dd class="text-right">{{ order.paymentMethod || '—' }}</dd>
-          </template>
-          <template v-if="isReceipt && order.paymentReference">
-            <dt class="text-ink-3">REFERENCE</dt>
-            <dd class="text-right">{{ order.paymentReference }}</dd>
-          </template>
-        </dl>
-
-        <div class="dashed my-4"></div>
-
-        <table class="w-full text-[12px]">
-          <thead>
-            <tr class="mono text-[10px] uppercase tracking-widest text-ink-3">
-              <th class="text-left font-normal pb-2">Item</th>
-              <th class="text-center font-normal pb-2">Qty</th>
-              <th class="text-right font-normal pb-2">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="line in activeItems" :key="line.id">
-              <td class="py-1.5 pr-2">
-                {{ line.menuItem?.name }}
-                <template v-if="line.modifiers?.length">
-                  <div
-                    v-for="m in line.modifiers"
-                    :key="m.id"
-                    class="mono text-[10px] text-ink-3 pl-2"
-                  >
-                    + {{ m.optionName }}<template v-if="Number(m.priceDelta)">
-                      ({{ signedMoney(m.priceDelta) }})</template>
-                  </div>
-                </template>
-                <div v-if="line.note" class="mono text-[10px] text-ink-3 pl-2">
-                  “{{ line.note }}”
-                </div>
-              </td>
-              <td class="text-center mono">{{ line.quantity }}</td>
-              <td class="text-right mono whitespace-nowrap">{{ money(line.totalPrice) }}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div class="dashed my-4"></div>
-
-        <div class="space-y-1.5">
-          <div class="flex justify-between text-[12px]">
-            <span>Subtotal</span><span class="mono">{{ money(subtotal) }}</span>
-          </div>
-          <div
-            v-for="c in order.charges || []"
-            :key="c.id"
-            class="flex justify-between text-[12px]"
-          >
-            <span>{{ c.label }}</span><span class="mono">{{ money(c.computedAmount) }}</span>
-          </div>
-          <div v-if="!order.charges?.length" class="flex justify-between text-[12px]">
-            <span>Tax</span><span class="mono">{{ money(order.taxAmount) }}</span>
-          </div>
-          <div class="flex justify-between items-baseline pt-2 border-t border-line mt-2">
-            <span class="display text-base">Total</span>
-            <span class="mono text-xl font-bold">{{ money(order.totalAmount) }}</span>
-          </div>
-          <template v-if="refundedAmount > 0">
-            <div class="flex justify-between text-[12px]">
-              <span>Refunded</span><span class="mono">−{{ money(refundedAmount) }}</span>
-            </div>
-            <div class="flex justify-between text-[12px] font-medium">
-              <span>Net</span><span class="mono">{{ money(netAmount) }}</span>
-            </div>
-          </template>
-        </div>
-
-        <template v-if="isReceipt">
-          <div class="dashed my-4"></div>
-          <div class="space-y-1.5 text-[12px]">
-            <div class="flex justify-between">
-              <span>Tendered</span><span class="mono">{{ money(order.paymentAmount) }}</span>
-            </div>
-            <div v-if="change > 0" class="flex justify-between">
-              <span>Change</span><span class="mono">{{ money(change) }}</span>
-            </div>
-          </div>
-        </template>
-
-        <div class="dashed my-4"></div>
-        <p class="text-center mono text-[10px] tracking-[0.2em] text-ink-3">
-          {{ footerText }}
-        </p>
-      </div>
+      <ReceiptPaper :order="order" :mode="mode" :settings="appSettings.data" />
     </div>
   </div>
 </template>
