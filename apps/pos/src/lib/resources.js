@@ -125,4 +125,7 @@ export const branding = {
 export const users = {
   list: () => api.get('/users'),
   create: (body) => api.post('/users', body),
+  setActive: (id, active) => api.patch(`/users/${id}/active`, { active }),
+  resetPassword: (id, newPassword) =>
+    api.post(`/users/${id}/reset-password`, { newPassword }),
 }
