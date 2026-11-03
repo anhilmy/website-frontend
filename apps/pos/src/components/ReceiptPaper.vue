@@ -39,17 +39,21 @@ const change = computed(
 <template>
   <div class="recv px-6 py-7">
     <header class="text-center">
-      <div v-if="view.systemName" class="eyebrow">{{ view.systemName }}</div>
-      <h1 class="display text-2xl mt-2">{{ view.companyName || view.systemName }}</h1>
-      <div class="mono text-[11px] tracking-[0.24em] text-ink-3 mt-1">
+      <div class="mono text-[18px] tracking-[0.24em] text-ink-3 mt-1">
         {{ view.receipt ? 'RECEIPT' : 'BILL' }}
       </div>
-      <p v-if="view.location" class="mono text-[10px] tracking-[0.2em] text-ink-3 mt-1">
+      <div v-if="view.systemName" class="eyebrow">{{ view.systemName }}</div>
+      <h1 class="display text-2xl mt-2">{{ view.companyName || view.systemName }}</h1>
+      <p v-if="view.location" class="mono text-[12px] tracking-[0.2em] text-ink-3 mt-1">
         {{ view.location }}
       </p>
       <p v-if="view.taxNumber" class="mono text-[10px] text-ink-3 mt-0.5">
         NPWP {{ view.taxNumber }}
       </p>
+      <div v-if="view.meta.length" class="mt-4 text-center mono text-[11px] text-ink-2">
+        {{ view.meta.join(' · ') }}
+      </div>
+
       <div class="dashed my-4"></div>
       <div class="flex items-center justify-between mono text-[11px] tracking-widest">
         <span class="text-ink-3">{{ view.receipt ? 'RECEIPT NO' : 'BILL NO' }}</span>
@@ -57,41 +61,25 @@ const change = computed(
       </div>
     </header>
 
-    <div v-if="view.meta.length" class="mt-4 text-center mono text-[11px] text-ink-2">
-      {{ view.meta.join(' · ') }}
-    </div>
-
     <div class="dashed my-4"></div>
 
     <ul class="space-y-3">
-      <li
-        v-for="line in lines"
-        :key="line.id"
-        class="flex items-baseline gap-3 text-sm"
-        :class="{ 'line-through text-ink-3': line.status === 'VOIDED' }"
-      >
+      <li v-for="line in lines" :key="line.id" class="flex items-baseline gap-3 text-sm"
+        :class="{ 'line-through text-ink-3': line.status === 'VOIDED' }">
         <span class="mono text-ink-3 w-8">{{ line.quantity }}×</span>
         <span class="flex-1 min-w-0">
           {{ line.menuItem?.name }}
-          <span
-            v-if="line.modifiers?.length"
-            class="block mono text-[10px] text-ink-3 mt-0.5"
-          >
+          <span v-if="line.modifiers?.length" class="block mono text-[10px] text-ink-3 mt-0.5">
             <span v-for="(m, idx) in line.modifiers" :key="m.id || idx">
               {{ m.groupName }}: {{ m.optionName }}<template v-if="Number(m.priceDelta)">
-                ({{ signedMoney(m.priceDelta) }})</template><template
-                v-if="idx < line.modifiers.length - 1"
-              >
+                ({{ signedMoney(m.priceDelta) }})</template><template v-if="idx < line.modifiers.length - 1">
                 · </template>
             </span>
           </span>
           <span v-if="line.note" class="block text-[11px] italic text-ink-3 mt-0.5">
             “{{ line.note }}”
           </span>
-          <span
-            v-if="line.status === 'VOIDED'"
-            class="block mono text-[10px] tracking-widest text-ember mt-0.5 no-underline"
-          >
+          <span v-if="line.status === 'VOIDED'" class="block mono text-[10px] tracking-widest text-ember mt-0.5 no-underline">
             VOIDED · {{ line.voidReason }}
           </span>
         </span>
@@ -111,11 +99,7 @@ const change = computed(
       <div class="flex justify-between text-[12px] text-ink-2">
         <span>Subtotal</span><span class="mono">{{ money(subtotal) }}</span>
       </div>
-      <div
-        v-for="c in order.charges || []"
-        :key="c.id"
-        class="flex justify-between text-[12px] text-ink-2"
-      >
+      <div v-for="c in order.charges || []" :key="c.id" class="flex justify-between text-[12px] text-ink-2">
         <span>{{ c.label }}</span><span class="mono">{{ money(c.computedAmount) }}</span>
       </div>
       <div v-if="!order.charges?.length" class="flex justify-between text-[12px] text-ink-2">
@@ -133,10 +117,7 @@ const change = computed(
           <span>Net</span><span class="mono">{{ money(netAmount) }}</span>
         </div>
       </template>
-      <div
-        v-if="view.showPayment"
-        class="flex justify-between items-baseline pt-2 border-t hairline mt-2"
-      >
+      <div v-if="view.showPayment" class="flex justify-between items-baseline pt-2 border-t hairline mt-2">
         <span class="mono text-[11px] tracking-widest uppercase">
           {{ view.paymentMethod }}
         </span>
@@ -160,11 +141,7 @@ const change = computed(
       <div class="dashed my-4"></div>
       <div class="eyebrow mb-3">Refunds</div>
       <ul class="space-y-2">
-        <li
-          v-for="r in order.refunds"
-          :key="r.id"
-          class="flex items-baseline justify-between gap-3 text-sm"
-        >
+        <li v-for="r in order.refunds" :key="r.id" class="flex items-baseline justify-between gap-3 text-sm">
           <span class="min-w-0">
             <span class="mono text-ink-3">{{ r.quantity }}×</span>
             {{ r.reason }}

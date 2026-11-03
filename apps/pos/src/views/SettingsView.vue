@@ -121,7 +121,7 @@ onMounted(async () => {
 
     <section class="plate p-5 mt-4 rise rise-2">
       <div class="eyebrow">Receipt number</div>
-      <div class="grid sm:grid-cols-[1fr_140px_180px] gap-4 mt-4 items-end">
+      <div class="grid sm:grid-cols-[1fr_140px_180px] gap-4 mt-4 items-start">
         <div>
           <label class="label" for="settings-format">Format</label>
           <input
