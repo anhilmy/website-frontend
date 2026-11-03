@@ -3,7 +3,6 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import Pencil from '@primevue/icons/pencil'
 import Trash from '@primevue/icons/trash'
 import Times from '@primevue/icons/times'
-import Filter from '@primevue/icons/filter'
 import { categories as catApi, items as itemApi } from '../lib/resources'
 import { isManager } from '../lib/session'
 import { money } from '../lib/format'
@@ -30,6 +29,12 @@ const itemForm = reactive({
 })
 const editing = ref(false)
 const modifierItem = ref(null)
+const pendingFile = ref(null)
+const pendingPreview = ref('')
+const uploading = ref(false)
+const imageError = ref('')
+
+const imagePreview = computed(() => pendingPreview.value || itemForm.imageUrl)
 
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase()
@@ -75,7 +80,24 @@ async function removeCategory(c) {
   }
 }
 
+async function activateCategory(c) {
+  try {
+    await catApi.update(c.id, { active: true })
+    await loadAll()
+  } catch (e) {
+    notice.value = e.message
+  }
+}
+
+function clearPendingImage() {
+  if (pendingPreview.value) URL.revokeObjectURL(pendingPreview.value)
+  pendingPreview.value = ''
+  pendingFile.value = null
+  imageError.value = ''
+}
+
 function startCreate() {
+  clearPendingImage()
   Object.assign(itemForm, {
     id: null,
     name: '',
@@ -89,6 +111,7 @@ function startCreate() {
 }
 
 function startEdit(item) {
+  clearPendingImage()
   Object.assign(itemForm, {
     id: item.id,
     name: item.name,
@@ -101,6 +124,57 @@ function startEdit(item) {
   editing.value = true
 }
 
+async function uploadPending(itemId) {
+  if (!pendingFile.value) return
+  uploading.value = true
+  imageError.value = ''
+  try {
+    const updated = await itemApi.uploadImage(itemId, pendingFile.value)
+    itemForm.imageUrl = updated.imageUrl
+    clearPendingImage()
+  } catch (e) {
+    imageError.value = e.message
+  } finally {
+    uploading.value = false
+  }
+}
+
+async function onFileSelected(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  imageError.value = ''
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    imageError.value = 'Use a JPEG, PNG, or WebP image.'
+    event.target.value = ''
+    return
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    imageError.value = 'Image must be 5 MB or smaller.'
+    event.target.value = ''
+    return
+  }
+  clearPendingImage()
+  pendingFile.value = file
+  pendingPreview.value = URL.createObjectURL(file)
+  if (itemForm.id) await uploadPending(itemForm.id)
+  event.target.value = ''
+}
+
+async function removeImage() {
+  imageError.value = ''
+  clearPendingImage()
+  if (!itemForm.id) {
+    itemForm.imageUrl = ''
+    return
+  }
+  try {
+    const updated = await itemApi.removeImage(itemForm.id)
+    itemForm.imageUrl = updated.imageUrl || ''
+  } catch (e) {
+    imageError.value = e.message
+  }
+}
+
 async function saveItem() {
   const payload = {
     name: itemForm.name.trim(),
@@ -111,9 +185,16 @@ async function saveItem() {
     imageUrl: itemForm.imageUrl.trim(),
   }
   try {
-    if (itemForm.id) await itemApi.update(itemForm.id, payload)
-    else await itemApi.create(payload)
+    if (itemForm.id) {
+      await itemApi.update(itemForm.id, payload)
+      if (pendingFile.value) await uploadPending(itemForm.id)
+    } else {
+      const created = await itemApi.create(payload)
+      if (pendingFile.value) await uploadPending(created.id)
+    }
+    if (imageError.value) return
     editing.value = false
+    clearPendingImage()
     await loadAll()
   } catch (e) {
     notice.value = e.message
@@ -177,7 +258,16 @@ onMounted(loadAll)
               <span
                 v-if="!c.active"
                 class="tag border-ink/30 text-ink-3 shrink-0"
-              >off</span>
+              >retired</span>
+              <button
+                v-if="canEdit && !c.active"
+                class="btn btn-ghost btn-sm shrink-0"
+                type="button"
+                title="Activate category"
+                @click="activateCategory(c)"
+              >
+                Activate
+              </button>
               <button
                 v-else-if="canEdit"
                 class="btn-icon shrink-0"
@@ -246,11 +336,26 @@ onMounted(loadAll)
                   <button
                     class="btn-icon"
                     type="button"
-                    title="Modifiers"
-                    aria-label="Modifiers"
+                    title="Customize item"
+                    aria-label="Customize item"
                     @click="modifierItem = item"
                   >
-                    <Filter />
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <circle cx="12" cy="12" r="3" />
+                      <path
+                        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.16.36.26.75.3 1.15"
+                      />
+                    </svg>
                   </button>
                   <button
                     class="btn-icon"
@@ -311,15 +416,37 @@ onMounted(loadAll)
             <input v-model="itemForm.description" class="field" />
           </div>
           <div>
-            <label class="label">Image URL</label>
-            <div class="flex items-center gap-2">
-              <MenuThumb :src="itemForm.imageUrl" :alt="itemForm.name" />
-              <input
-                v-model="itemForm.imageUrl"
-                class="field mono"
-                placeholder="https://…"
-              />
+            <label class="label">Image</label>
+            <div class="flex items-center gap-3">
+              <MenuThumb :src="imagePreview" :alt="itemForm.name" />
+              <div class="flex-1 space-y-2">
+                <label class="btn btn-sm cursor-pointer">
+                  {{ uploading ? 'Uploading…' : 'Upload image' }}
+                  <input
+                    type="file"
+                    class="hidden"
+                    accept="image/jpeg,image/png,image/webp"
+                    :disabled="uploading"
+                    @change="onFileSelected"
+                  />
+                </label>
+                <button
+                  v-if="imagePreview"
+                  class="btn btn-ghost btn-sm"
+                  type="button"
+                  :disabled="uploading"
+                  @click="removeImage"
+                >
+                  Remove image
+                </button>
+              </div>
             </div>
+            <input
+              v-model="itemForm.imageUrl"
+              class="field mono mt-2"
+              placeholder="or paste an external image URL"
+            />
+            <p v-if="imageError" class="mt-1 text-xs text-ember">{{ imageError }}</p>
           </div>
           <div class="grid grid-cols-2 gap-3">
             <div>
@@ -329,7 +456,9 @@ onMounted(loadAll)
             <div>
               <label class="label">Category</label>
               <select v-model="itemForm.categoryId" class="field">
-                <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
+                <option v-for="c in categories" :key="c.id" :value="c.id">
+                  {{ c.name }}{{ c.active ? '' : ' (retired)' }}
+                </option>
               </select>
             </div>
           </div>

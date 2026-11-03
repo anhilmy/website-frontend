@@ -1,5 +1,7 @@
 <script setup>
 import { ref, watch } from 'vue'
+import { API_BASE } from '../lib/api'
+import { resolveMediaUrl } from '../lib/media'
 
 const props = defineProps({
   src: { type: String, default: '' },
@@ -25,7 +27,7 @@ watch(
   >
     <img
       v-if="src && !failed"
-      :src="src"
+      :src="resolveMediaUrl(src, API_BASE)"
       :alt="alt"
       loading="lazy"
       @error="failed = true"

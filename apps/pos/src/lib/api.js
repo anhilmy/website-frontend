@@ -5,7 +5,10 @@
  * Every backend response is the envelope { success, data, message, error, timestamp };
  * this module unwraps `data` and throws an Error carrying { status, code } on failure.
  */
-const BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:4567/api/v1').replace(/\/$/, '')
+export const API_BASE = (
+  import.meta.env.VITE_API_BASE_URL || 'http://localhost:4567/api/v1'
+).replace(/\/$/, '')
+const BASE = API_BASE
 
 let onUnauthorized = null
 
@@ -68,6 +71,40 @@ async function request(path, { method = 'GET', body, auth = true } = {}) {
   return payload ? payload.data : null
 }
 
+async function upload(path, file) {
+  const headers = { 'Content-Type': file.type }
+  const token = getToken()
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  let res
+  try {
+    res = await fetch(BASE + path, { method: 'POST', headers, body: file })
+  } catch (networkError) {
+    const err = new Error('Cannot reach the API. Is the backend running?')
+    err.status = 0
+    err.cause = networkError
+    throw err
+  }
+
+  const text = await res.text()
+  let payload = null
+  if (text) {
+    try {
+      payload = JSON.parse(text)
+    } catch {
+      payload = null
+    }
+  }
+  if (res.status === 401 && onUnauthorized) onUnauthorized()
+  if (!res.ok || (payload && payload.success === false)) {
+    const err = new Error(payload?.error?.message || res.statusText || 'Upload failed')
+    err.status = res.status
+    err.code = payload?.error?.code
+    throw err
+  }
+  return payload ? payload.data : null
+}
+
 async function download(path, filename) {
   const headers = {}
   const token = getToken()
@@ -104,6 +141,7 @@ export const api = {
   put: (path, body, opts) => request(path, { ...opts, method: 'PUT', body }),
   patch: (path, body, opts) => request(path, { ...opts, method: 'PATCH', body }),
   del: (path, opts) => request(path, { ...opts, method: 'DELETE' }),
+  upload,
   download,
 }
 

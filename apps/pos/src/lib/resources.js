@@ -46,6 +46,8 @@ export const items = {
   create: (body) => api.post('/items', body),
   update: (id, body) => api.put(`/items/${id}`, body),
   deactivate: (id) => api.del(`/items/${id}`),
+  uploadImage: (id, file) => api.upload(`/menu/items/${id}/image`, file),
+  removeImage: (id) => api.del(`/menu/items/${id}/image`),
 }
 
 export const orders = {
