@@ -5,6 +5,7 @@ import { tables } from '../lib/resources'
 import { money } from '../lib/format'
 import { isManager } from '../lib/session'
 import StatusTag from '../components/StatusTag.vue'
+import MultiSelect from '../components/MultiSelect.vue'
 
 const router = useRouter()
 const canEdit = isManager()
@@ -13,7 +14,7 @@ const list = ref([])
 const loading = ref(true)
 const notice = ref('')
 const busyId = ref(null)
-const activeArea = ref('')
+const activeAreas = ref([])
 const openMenuId = ref(null)
 
 const joinFor = ref(null)
@@ -37,17 +38,23 @@ const STATUS_META = {
 }
 
 const areas = computed(() => [...new Set(list.value.map((t) => t.area))].sort())
+const areaOptions = computed(() => areas.value.map((area) => ({ value: area, label: area })))
+
+const visibleTables = computed(() =>
+  activeAreas.value.length
+    ? list.value.filter((t) => activeAreas.value.includes(t.area))
+    : list.value,
+)
 
 const grouped = computed(() => {
-  const shown = activeArea.value ? list.value.filter((t) => t.area === activeArea.value) : list.value
   const byArea = {}
-  for (const t of shown) (byArea[t.area] ||= []).push(t)
+  for (const t of visibleTables.value) (byArea[t.area] ||= []).push(t)
   return Object.entries(byArea).sort(([a], [b]) => a.localeCompare(b))
 })
 
 const counts = computed(() => {
   const c = {}
-  for (const t of list.value) c[t.status] = (c[t.status] || 0) + 1
+  for (const t of visibleTables.value) c[t.status] = (c[t.status] || 0) + 1
   return c
 })
 
@@ -227,37 +234,47 @@ onUnmounted(() => {
         <div class="eyebrow">Floor plan</div>
         <h3 class="display text-2xl mt-1">Tables</h3>
       </div>
-      <div class="flex items-center gap-4">
-        <div class="hidden md:flex flex-wrap justify-end items-center gap-x-5 gap-y-2">
-          <span
-            v-for="(meta, key) in STATUS_META"
-            :key="key"
-            class="flex items-center gap-2 mono text-sm tracking-wide text-ink-2"
-          >
-            <span class="h-3 w-3 rounded-full" :class="meta.dot"></span>
-            {{ key.replaceAll('_', ' ') }} · {{ counts[key] || 0 }}
-          </span>
-        </div>
-        <button v-if="canEdit" class="btn-ember" @click="startCreate">Add table</button>
-      </div>
     </div>
 
-    <div class="flex flex-wrap gap-2 mt-5 rise rise-2">
-      <button
-        class="btn btn-sm"
-        :class="{ 'btn-active': !activeArea }"
-        @click="activeArea = ''"
-      >
-        All areas
-      </button>
-      <button
-        v-for="a in areas"
-        :key="a"
-        class="btn btn-sm"
-        :class="{ 'btn-active': activeArea === a }"
-        @click="activeArea = a"
-      >
-        {{ a }}
+    <section class="plate mt-6 p-5 rise rise-2">
+      <div class="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div class="eyebrow">Summary</div>
+          <h4 class="display text-lg mt-1">Floor status</h4>
+        </div>
+        <span class="mono text-xs text-ink-3">
+          {{ visibleTables.length }} of {{ list.length }} tables
+        </span>
+      </div>
+      <div class="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4">
+        <span
+          v-for="(meta, key) in STATUS_META"
+          :key="key"
+          class="flex items-center gap-2 mono text-sm tracking-wide text-ink-2"
+        >
+          <span class="h-3 w-3 rounded-full" :class="meta.dot"></span>
+          {{ key.replaceAll('_', ' ') }} · {{ counts[key] || 0 }}
+        </span>
+      </div>
+      <template v-if="canEdit">
+        <div class="dashed my-4"></div>
+        <button class="btn btn-sm w-full" @click="startCreate">Add table</button>
+      </template>
+    </section>
+
+    <div class="relative z-20 flex flex-wrap items-end gap-3 mt-5 rise rise-2">
+      <div class="min-w-[220px]">
+        <label class="label" for="table-area-filter">Area</label>
+        <MultiSelect
+          id="table-area-filter"
+          v-model="activeAreas"
+          :options="areaOptions"
+          label="areas"
+          placeholder="All areas"
+        />
+      </div>
+      <button v-if="activeAreas.length" class="btn btn-sm" @click="activeAreas = []">
+        Clear areas
       </button>
     </div>
 

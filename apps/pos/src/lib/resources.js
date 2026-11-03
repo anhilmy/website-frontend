@@ -1,4 +1,5 @@
 import { api } from './api'
+import { buildQuery } from './query'
 
 /** Endpoint wrappers grouped by resource. */
 export const auth = {
@@ -89,12 +90,7 @@ export const paymentMethods = {
     ),
 }
 
-const withQuery = (path, params = {}) => {
-  const qs = new URLSearchParams(
-    Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''),
-  ).toString()
-  return `${path}${qs ? `?${qs}` : ''}`
-}
+const withQuery = buildQuery
 
 export const reports = {
   payments: (params = {}) => api.get(withQuery('/reports/payments', params)),

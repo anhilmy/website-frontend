@@ -1,9 +1,10 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { orders, reports } from '../lib/resources'
+import { orders, reports, users } from '../lib/resources'
 import { money, dateTime } from '../lib/format'
 import { isManager } from '../lib/session'
 import StatusTag from '../components/StatusTag.vue'
+import MultiSelect from '../components/MultiSelect.vue'
 
 const manager = isManager()
 
@@ -11,7 +12,9 @@ const loading = ref(true)
 const error = ref('')
 const reportError = ref('')
 const rows = ref([])
-const status = ref('')
+const statuses = ref([])
+const cashierIds = ref([])
+const cashiers = ref([])
 const fromDate = ref('')
 const toDate = ref('')
 const report = ref(null)
@@ -19,27 +22,30 @@ const page = ref(1)
 const total = ref(0)
 const pageSize = 50
 
-const filters = [
-  { label: 'All', value: '' },
-  { label: 'Draft', value: 'DRAFT' },
-  { label: 'In progress', value: 'IN_PROGRESS' },
-  { label: 'Completed', value: 'COMPLETED' },
-  { label: 'Partially refunded', value: 'PARTIALLY_REFUNDED' },
-  { label: 'Refunded', value: 'REFUNDED' },
-  { label: 'Cancelled', value: 'CANCELLED' },
-  { label: 'Amended', value: 'AMENDED' },
+const statusOptions = [
+  { value: 'DRAFT', label: 'Draft' },
+  { value: 'IN_PROGRESS', label: 'In progress' },
+  { value: 'COMPLETED', label: 'Completed' },
+  { value: 'PARTIALLY_REFUNDED', label: 'Partially refunded' },
+  { value: 'REFUNDED', label: 'Refunded' },
+  { value: 'CANCELLED', label: 'Cancelled' },
+  { value: 'AMENDED', label: 'Amended' },
 ]
 
-const totals = computed(() => {
-  const settled = rows.value.filter((r) =>
-    ['COMPLETED', 'PARTIALLY_REFUNDED', 'REFUNDED'].includes(r.status),
-  )
-  const revenue = settled.reduce(
-    (s, r) => s + Number(r.totalAmount) - Number(r.refundedAmount || 0),
-    0,
-  )
-  return { count: total.value, revenue }
-})
+const cashierOptions = computed(() =>
+  cashiers.value.map((u) => ({
+    value: u.id,
+    label: u.username,
+    meta: u.active === false ? 'disabled' : u.role,
+  })),
+)
+
+const summary = computed(() => ({
+  orders: report.value?.orderCount ?? total.value,
+  gross: report.value?.totals?.gross ?? 0,
+  refunded: report.value?.totals?.refunded ?? 0,
+  net: report.value?.totals?.net ?? 0,
+}))
 
 function rangeParams() {
   return {
@@ -52,11 +58,19 @@ function rangeParams() {
   }
 }
 
+function filterParams() {
+  return {
+    status: statuses.value,
+    cashierId: cashierIds.value,
+    ...rangeParams(),
+  }
+}
+
 async function loadReport() {
   if (!manager) return
   reportError.value = ''
   try {
-    report.value = await reports.payments(rangeParams())
+    report.value = await reports.payments(filterParams())
   } catch (e) {
     reportError.value = e.message
   }
@@ -67,10 +81,9 @@ async function load(targetPage = page.value) {
   error.value = ''
   try {
     const result = await orders.list({
-      status: status.value,
+      ...filterParams(),
       page: targetPage,
       size: pageSize,
-      ...rangeParams(),
     })
     rows.value = result.items ?? result
     total.value = result.total ?? rows.value.length
@@ -83,10 +96,15 @@ async function load(targetPage = page.value) {
   await loadReport()
 }
 
+function applyFilters() {
+  page.value = 1
+  load(1)
+}
+
 async function exportCsv() {
   error.value = ''
   try {
-    await reports.exportOrders({ status: status.value, ...rangeParams() })
+    await reports.exportOrders(filterParams())
   } catch (e) {
     error.value = e.message
   }
@@ -95,11 +113,15 @@ async function exportCsv() {
 function clearRange() {
   fromDate.value = ''
   toDate.value = ''
-  page.value = 1
-  load(1)
+  applyFilters()
 }
 
-onMounted(load)
+onMounted(async () => {
+  if (manager) {
+    cashiers.value = await users.list().catch(() => [])
+  }
+  await load()
+})
 </script>
 
 <template>
@@ -109,20 +131,31 @@ onMounted(load)
         <div class="eyebrow">Ledger</div>
         <h3 class="display text-2xl mt-1">Order history</h3>
       </div>
-      <div class="flex items-end gap-6">
-        <div class="text-right">
-          <div class="eyebrow">Orders</div>
-          <div class="mono text-xl">{{ totals.count }}</div>
-        </div>
-        <div class="text-right">
-          <div class="eyebrow">Page net</div>
-          <div class="mono text-xl text-sage">{{ money(totals.revenue) }}</div>
-        </div>
-        <button v-if="manager" class="btn btn-sm" @click="exportCsv">Export CSV</button>
-      </div>
     </div>
 
-    <div class="flex flex-wrap items-end gap-3 mt-6 rise rise-2">
+    <div class="relative z-20 flex flex-wrap items-end gap-3 mt-6 rise rise-2">
+      <div class="min-w-[190px]">
+        <label class="label" :for="'order-status-filter'">Status</label>
+        <MultiSelect
+          id="order-status-filter"
+          v-model="statuses"
+          :options="statusOptions"
+          label="statuses"
+          placeholder="All statuses"
+          @update:model-value="applyFilters"
+        />
+      </div>
+      <div v-if="manager" class="min-w-[190px]">
+        <label class="label" :for="'order-cashier-filter'">Cashier</label>
+        <MultiSelect
+          id="order-cashier-filter"
+          v-model="cashierIds"
+          :options="cashierOptions"
+          label="cashiers"
+          placeholder="All cashiers"
+          @update:model-value="applyFilters"
+        />
+      </div>
       <div>
         <label class="label" for="from">From</label>
         <input
@@ -130,7 +163,7 @@ onMounted(load)
           v-model="fromDate"
           type="date"
           class="field mono"
-          @change="page = 1; load(1)"
+          @change="applyFilters"
         />
       </div>
       <div>
@@ -140,36 +173,41 @@ onMounted(load)
           v-model="toDate"
           type="date"
           class="field mono"
-          @change="page = 1; load(1)"
+          @change="applyFilters"
         />
       </div>
       <button v-if="fromDate || toDate" class="btn btn-sm" @click="clearRange">
         Clear range
       </button>
-    </div>
-
-    <div class="flex flex-wrap gap-2 mt-4 rise rise-2">
-      <button
-        v-for="f in filters"
-        :key="f.value"
-        class="btn btn-sm"
-        :class="{ 'btn-active': status === f.value }"
-        @click="status = f.value; page = 1; load(1)"
-      >
-        {{ f.label }}
+      <button v-if="manager" class="btn btn-sm ml-auto" @click="exportCsv">
+        Export CSV
       </button>
     </div>
 
-    <!-- Reconciliation -->
+    <!-- Summary -->
     <section v-if="manager" class="plate mt-6 p-5 rise rise-3">
-      <div class="flex flex-wrap items-end justify-between gap-3">
+      <div class="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div class="eyebrow">Reconciliation</div>
+          <div class="eyebrow">Summary</div>
           <h4 class="display text-lg mt-1">By payment method</h4>
         </div>
-        <div class="text-right">
-          <div class="eyebrow">Net in range</div>
-          <div class="mono text-xl text-sage">{{ money(report?.totals?.net || 0) }}</div>
+        <div class="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-4">
+          <div class="text-right">
+            <div class="eyebrow">Orders</div>
+            <div class="mono text-xl">{{ summary.orders }}</div>
+          </div>
+          <div class="text-right">
+            <div class="eyebrow">Gross</div>
+            <div class="mono text-xl">{{ money(summary.gross) }}</div>
+          </div>
+          <div class="text-right">
+            <div class="eyebrow">Refunded</div>
+            <div class="mono text-xl text-ember">{{ money(summary.refunded) }}</div>
+          </div>
+          <div class="text-right">
+            <div class="eyebrow">Net</div>
+            <div class="mono text-xl text-sage">{{ money(summary.net) }}</div>
+          </div>
         </div>
       </div>
       <div class="dashed my-4"></div>
@@ -199,7 +237,7 @@ onMounted(load)
           </tr>
         </tbody>
       </table>
-      <p v-else class="text-sm text-ink-3">Loading reconciliation…</p>
+      <p v-else class="text-sm text-ink-3">Loading summary…</p>
     </section>
 
     <div class="plate mt-6 overflow-hidden rise rise-3">
@@ -223,7 +261,9 @@ onMounted(load)
             class="border-b hairline last:border-0 hover:bg-paper-2/60 cursor-pointer transition-colors"
             @click="$router.push({ name: 'order', params: { id: o.id } })"
           >
-            <td class="px-5 py-3.5 mono font-medium">#{{ String(o.id).padStart(3, '0') }}</td>
+            <td class="px-5 py-3.5 mono font-medium">
+              {{ o.receiptNumber || `#${String(o.id).padStart(3, '0')}` }}
+            </td>
             <td class="px-5 py-3.5">{{ o.customerInfo || 'Walk-in' }}</td>
             <td class="px-5 py-3.5 mono text-ink-2">
               {{ (o.items || []).filter((i) => i.status !== 'VOIDED').length }}
